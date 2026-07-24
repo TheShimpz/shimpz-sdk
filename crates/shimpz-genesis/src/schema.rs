@@ -16,6 +16,10 @@ pub(crate) fn validate_root_schema(schema: &Value) -> Result<(), ContractError> 
     }
 }
 
+pub(crate) fn validate_any_schema(schema: &Value) -> Result<(), ContractError> {
+    validate_schema(schema, 0)
+}
+
 fn validate_schema(schema: &Value, depth: usize) -> Result<(), ContractError> {
     if depth > MAX_DEPTH {
         return Err(ContractError::new("Power schema is too deeply nested"));

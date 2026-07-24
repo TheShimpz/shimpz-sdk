@@ -53,3 +53,29 @@ impl Display for ContractError {
 }
 
 impl std::error::Error for ContractError {}
+
+/// A schema mismatch that never includes the private value.
+#[derive(Debug, Eq, PartialEq)]
+pub struct ValueError {
+    message: &'static str,
+}
+
+impl ValueError {
+    pub(crate) const fn new(message: &'static str) -> Self {
+        Self { message }
+    }
+
+    /// Return the stable, secret-free diagnostic.
+    #[must_use]
+    pub const fn message(&self) -> &'static str {
+        self.message
+    }
+}
+
+impl Display for ValueError {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(self.message)
+    }
+}
+
+impl std::error::Error for ValueError {}
