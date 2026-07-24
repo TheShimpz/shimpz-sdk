@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/shimpz-genesis"]
+members = ["crates/shimpz-genesis", "python/native"]
 resolver = "3"
 
 [workspace.package]

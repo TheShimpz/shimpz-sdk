@@ -1,0 +1,65 @@
+//! Private `PyO3` boundary between Python and Shimpz Genesis.
+
+use pyo3::exceptions::PyValueError;
+use pyo3::prelude::*;
+use serde::Deserialize;
+use serde_json::Value;
+use shimpz_genesis::{AssistantContract, AssistantManifest, PowerContract, validate_value};
+
+#[derive(Deserialize)]
+struct PowerInput {
+    id: String,
+    accounts: Vec<String>,
+    input_schema: Value,
+    output_schema: Value,
+}
+
+#[pyfunction]
+fn validate_manifest(source: &str) -> PyResult<()> {
+    AssistantManifest::parse(source)
+        .map(|_| ())
+        .map_err(value_error)
+}
+
+#[pyfunction]
+fn build_contract(manifest_source: &str, powers_json: &str) -> PyResult<String> {
+    let manifest = AssistantManifest::parse(manifest_source).map_err(value_error)?;
+    let inputs: Vec<PowerInput> = serde_json::from_str(powers_json)
+        .map_err(|_| PyValueError::new_err("Powers JSON is invalid"))?;
+    let powers = inputs
+        .into_iter()
+        .map(|input| {
+            PowerContract::new(
+                input.id,
+                input.accounts,
+                input.input_schema,
+                input.output_schema,
+            )
+            .map_err(value_error)
+        })
+        .collect::<PyResult<Vec<_>>>()?;
+    let contract = AssistantContract::build(&manifest, powers).map_err(value_error)?;
+    let bytes = contract.canonical_bytes().map_err(value_error)?;
+    String::from_utf8(bytes).map_err(|_| PyValueError::new_err("Power contract is not UTF-8"))
+}
+
+#[pyfunction]
+fn validate_json(schema_json: &str, value_json: &str) -> PyResult<()> {
+    let schema: Value = serde_json::from_str(schema_json)
+        .map_err(|_| PyValueError::new_err("schema JSON is invalid"))?;
+    let value: Value = serde_json::from_str(value_json)
+        .map_err(|_| PyValueError::new_err("value JSON is invalid"))?;
+    validate_value(&schema, &value).map_err(value_error)
+}
+
+fn value_error(error: impl std::fmt::Display) -> PyErr {
+    PyValueError::new_err(error.to_string())
+}
+
+#[pymodule]
+fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    module.add_function(wrap_pyfunction!(build_contract, module)?)?;
+    module.add_function(wrap_pyfunction!(validate_json, module)?)?;
+    module.add_function(wrap_pyfunction!(validate_manifest, module)?)?;
+    Ok(())
+}

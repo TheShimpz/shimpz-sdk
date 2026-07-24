@@ -1,7 +1,7 @@
-/.venv/
+**/.venv/
 /target/
 /.ruff_cache/
-/.pytest_cache/
+**/.pytest_cache/
 **/__pycache__/
 *.py[cod]
 *.so
