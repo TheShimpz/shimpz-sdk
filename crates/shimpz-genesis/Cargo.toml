@@ -11,5 +11,10 @@ keywords = ["assistant", "sdk", "shimpz"]
 categories = ["development-tools"]
 include = ["src/**", "Cargo.toml", "README.md"]
 
+[dependencies]
+semver = { version = "1", features = ["serde"] }
+serde = { version = "1", features = ["derive"] }
+toml = "0.9"
+
 [lints]
 workspace = true
