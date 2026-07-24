@@ -1,0 +1,15 @@
+[package]
+name = "shimpz-genesis"
+version = "0.1.0"
+description = "Language-neutral foundation for Shimpz Assistant SDKs"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+readme = "README.md"
+keywords = ["assistant", "sdk", "shimpz"]
+categories = ["development-tools"]
+include = ["src/**", "Cargo.toml", "README.md"]
+
+[lints]
+workspace = true
