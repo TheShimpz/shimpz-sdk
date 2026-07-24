@@ -8,7 +8,19 @@ pip install shimpz
 ```
 
 ```python
-from shimpz import power
+from typing import TypedDict
+
+from shimpz import Context, power
+
+
+class CreatedDns(TypedDict):
+    id: str
+
+
+@power(accounts=["cloudflare"])
+async def run(zone: str, *, ctx: Context = None) -> CreatedDns:
+    token = ctx.accounts.cloudflare.access_token
+    ...
 ```
 
 The native `_native` module is private and may not be imported by Assistants.
