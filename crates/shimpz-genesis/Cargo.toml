@@ -9,7 +9,7 @@ rust-version.workspace = true
 readme = "README.md"
 keywords = ["assistant", "sdk", "shimpz"]
 categories = ["development-tools"]
-include = ["src/**", "Cargo.toml", "README.md"]
+include = ["src/**", "tests/**", "Cargo.toml", "README.md"]
 
 [dependencies]
 semver = { version = "1", features = ["serde"] }
