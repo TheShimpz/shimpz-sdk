@@ -132,7 +132,7 @@ fn validate_accounts(manifest: &AssistantManifest) -> Result<(), ManifestError> 
     Ok(())
 }
 
-fn valid_id(value: &str) -> bool {
+pub(crate) fn valid_id(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= 64
         && value.starts_with(|character: char| character.is_ascii_lowercase())

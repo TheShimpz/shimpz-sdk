@@ -1,10 +1,12 @@
 //! Language-neutral foundation for Shimpz Assistant SDKs.
 
+mod contract;
 mod error;
 mod manifest;
 mod validation;
 
-pub use error::ManifestError;
+pub use contract::{AssistantContract, PowerContract};
+pub use error::{ContractError, ManifestError};
 pub use manifest::{AccountIntent, AssistantManifest};
 
 /// The only supported Assistant Spec version.
