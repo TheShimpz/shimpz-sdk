@@ -4,6 +4,7 @@ use serde::Serialize;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
+use crate::schema::validate_root_schema;
 use crate::validation::valid_id;
 use crate::{AssistantManifest, ContractError, SPEC_VERSION};
 
@@ -139,21 +140,6 @@ fn validate_power(
     }
     validate_root_schema(input_schema)?;
     validate_root_schema(output_schema)
-}
-
-fn validate_root_schema(schema: &Value) -> Result<(), ContractError> {
-    let Some(object) = schema.as_object() else {
-        return Err(ContractError::new("Power schema must be an object"));
-    };
-    let closed = object.get("type").and_then(Value::as_str) == Some("object")
-        && object.get("additionalProperties").and_then(Value::as_bool) == Some(false)
-        && object.get("properties").is_some_and(Value::is_object)
-        && object.get("required").is_some_and(Value::is_array);
-    if closed {
-        Ok(())
-    } else {
-        Err(ContractError::new("Power schema must be a closed object"))
-    }
 }
 
 fn validate_catalog(

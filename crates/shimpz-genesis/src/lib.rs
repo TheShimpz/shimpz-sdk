@@ -3,6 +3,7 @@
 mod contract;
 mod error;
 mod manifest;
+mod schema;
 mod validation;
 
 pub use contract::{AssistantContract, PowerContract};

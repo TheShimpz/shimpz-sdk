@@ -109,3 +109,50 @@ fn rejects_open_or_non_object_schemas() {
         assert!(error.message().starts_with("Power schema"));
     }
 }
+
+#[test]
+fn rejects_unsupported_nested_schema_keywords() {
+    let invalid = json!({
+        "type": "object",
+        "properties": {
+            "zone": {
+                "type": "string",
+                "format": "hostname"
+            }
+        },
+        "required": ["zone"],
+        "additionalProperties": false
+    });
+    let error =
+        PowerContract::new("list-zones", Vec::new(), invalid, schema()).expect_err("keyword");
+
+    assert_eq!(error.message(), "Power schema keyword is unsupported");
+}
+
+#[test]
+fn accepts_closed_nested_objects_and_arrays() {
+    let nested = json!({
+        "type": "object",
+        "properties": {
+            "zones": {
+                "type": "array",
+                "maxItems": 50,
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "id": {
+                            "type": "string",
+                            "pattern": "^[0-9a-f]{32}$"
+                        }
+                    },
+                    "required": ["id"],
+                    "additionalProperties": false
+                }
+            }
+        },
+        "required": ["zones"],
+        "additionalProperties": false
+    });
+
+    PowerContract::new("list-zones", Vec::new(), schema(), nested).expect("supported schema");
+}
