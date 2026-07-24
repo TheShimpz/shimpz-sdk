@@ -1,3 +1,5 @@
 """Python SDK for authoring Shimpz Assistants."""
 
-__all__: list[str] = []
+from .power import power
+
+__all__ = ["power"]
