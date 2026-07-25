@@ -1,1 +1,2 @@
 /crates/shimpz-genesis/tests/fixtures/manifest-id-vectors.json text eol=lf
+/crates/shimpz-genesis/contracts/source-package/v1/** -text
