@@ -22,9 +22,9 @@ scopes = ["dns.read", "offline_access"]
 fn parses_a_complete_manifest() {
     let manifest = AssistantManifest::parse(VALID).expect("valid manifest");
 
-    assert_eq!(manifest.spec, SPEC_VERSION);
-    assert_eq!(manifest.version.to_string(), "0.1.0");
-    assert_eq!(manifest.accounts["cloudflare"].scopes.len(), 2);
+    assert_eq!(manifest.spec(), SPEC_VERSION);
+    assert_eq!(manifest.version().to_string(), "0.1.0");
+    assert_eq!(manifest.accounts()["cloudflare"].scopes().len(), 2);
 }
 
 #[test]

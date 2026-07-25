@@ -3,40 +3,66 @@ use std::collections::BTreeMap;
 use semver::Version;
 use serde::Deserialize;
 
+use crate::ManifestError;
 use crate::validation::validate_manifest;
-use crate::{ManifestError, SPEC_VERSION};
 
 /// One controller-owned Account capability requested by an Assistant.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct AccountIntent {
     /// Provider-defined OAuth scopes requested for each invocation.
-    pub scopes: Vec<String>,
+    pub(crate) scopes: Vec<String>,
+}
+
+impl AccountIntent {
+    /// Return the provider-defined OAuth scopes.
+    #[must_use]
+    pub fn scopes(&self) -> &[String] {
+        &self.scopes
+    }
 }
 
 /// The closed author-owned representation of `shimpz.toml`.
+///
+/// External code cannot bypass validation by constructing this type by hand:
+///
+/// ```compile_fail
+/// use shimpz_genesis::AssistantManifest;
+/// use std::collections::BTreeMap;
+/// let _sealed = AssistantManifest {
+///     spec: 1,
+///     version: "0.1.0".parse().unwrap(),
+///     name: "n".to_string(),
+///     summary: "s".to_string(),
+///     creators: vec!["@x".to_string()],
+///     github: "https://github.com/a/b".to_string(),
+///     allowed_hosts: Vec::new(),
+///     genesis: "g".to_string(),
+///     accounts: BTreeMap::new(),
+/// };
+/// ```
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct AssistantManifest {
     /// Assistant Spec version. Only version 1 is valid.
-    pub spec: u8,
+    pub(crate) spec: u8,
     /// Independently released Assistant version.
-    pub version: Version,
+    pub(crate) version: Version,
     /// Human-facing Assistant name.
-    pub name: String,
+    pub(crate) name: String,
     /// One-line Store summary.
-    pub summary: String,
+    pub(crate) summary: String,
     /// GitHub creator handles.
-    pub creators: Vec<String>,
+    pub(crate) creators: Vec<String>,
     /// Canonical public source repository.
-    pub github: String,
+    pub(crate) github: String,
     /// Exact public DNS hosts available through egress.
-    pub allowed_hosts: Vec<String>,
+    pub(crate) allowed_hosts: Vec<String>,
     /// Markdown instructions that establish the Assistant's purpose.
-    pub genesis: String,
+    pub(crate) genesis: String,
     /// Account intents keyed by provider id.
     #[serde(default)]
-    pub accounts: BTreeMap<String, AccountIntent>,
+    pub(crate) accounts: BTreeMap<String, AccountIntent>,
 }
 
 impl AssistantManifest {
@@ -53,9 +79,21 @@ impl AssistantManifest {
         Ok(manifest)
     }
 
-    /// Return whether this manifest uses the only supported Spec.
+    /// Return the validated Assistant Spec version.
     #[must_use]
-    pub const fn has_supported_spec(&self) -> bool {
-        self.spec == SPEC_VERSION
+    pub const fn spec(&self) -> u8 {
+        self.spec
+    }
+
+    /// Return the independently released Assistant version.
+    #[must_use]
+    pub const fn version(&self) -> &Version {
+        &self.version
+    }
+
+    /// Return Account intents keyed by provider id.
+    #[must_use]
+    pub const fn accounts(&self) -> &BTreeMap<String, AccountIntent> {
+        &self.accounts
     }
 }
