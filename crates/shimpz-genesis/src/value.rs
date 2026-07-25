@@ -1,8 +1,33 @@
+use std::collections::{HashMap, hash_map::Entry};
+
 use regex::Regex;
 use serde_json::Value;
 
 use crate::ValueError;
 use crate::schema::validate_any_schema;
+
+#[derive(Default)]
+struct PatternCache {
+    compiled: HashMap<String, Option<Regex>>,
+    compilations: usize,
+}
+
+impl PatternCache {
+    fn regex(&mut self, pattern: &str) -> Option<&Regex> {
+        match self.compiled.entry(pattern.to_owned()) {
+            Entry::Occupied(entry) => entry.into_mut().as_ref(),
+            Entry::Vacant(entry) => {
+                self.compilations += 1;
+                entry.insert(Regex::new(pattern).ok()).as_ref()
+            }
+        }
+    }
+
+    #[cfg(test)]
+    const fn compilations(&self) -> usize {
+        self.compilations
+    }
+}
 
 /// Validate one JSON value against the supported Shimpz schema dialect.
 ///
@@ -12,26 +37,27 @@ use crate::schema::validate_any_schema;
 /// included in the error.
 pub fn validate_value(schema: &Value, value: &Value) -> Result<(), ValueError> {
     validate_any_schema(schema).map_err(|_| ValueError::new("schema is invalid"))?;
-    if matches_schema(schema, value) {
+    let mut cache = PatternCache::default();
+    if matches_schema(&mut cache, schema, value) {
         Ok(())
     } else {
         Err(ValueError::new("value does not match schema"))
     }
 }
 
-fn matches_schema(schema: &Value, value: &Value) -> bool {
+fn matches_schema(cache: &mut PatternCache, schema: &Value, value: &Value) -> bool {
     match schema.get("type").and_then(Value::as_str) {
-        Some("string") => matches_string(schema, value),
+        Some("string") => matches_string(cache, schema, value),
         Some("integer") => matches_integer(schema, value),
         Some("number") => matches_number(schema, value),
         Some("boolean") => value.is_boolean(),
-        Some("array") => matches_array(schema, value),
-        Some("object") => matches_object(schema, value),
+        Some("array") => matches_array(cache, schema, value),
+        Some("object") => matches_object(cache, schema, value),
         _ => false,
     }
 }
 
-fn matches_string(schema: &Value, value: &Value) -> bool {
+fn matches_string(cache: &mut PatternCache, schema: &Value, value: &Value) -> bool {
     let Some(text) = value.as_str() else {
         return false;
     };
@@ -48,7 +74,11 @@ fn matches_string(schema: &Value, value: &Value) -> bool {
     let pattern_valid = schema
         .get("pattern")
         .and_then(Value::as_str)
-        .is_none_or(|pattern| Regex::new(pattern).is_ok_and(|regex| regex.is_match(text)));
+        .is_none_or(|pattern| {
+            cache
+                .regex(pattern)
+                .is_some_and(|regex| regex.is_match(text))
+        });
     length_valid && enum_valid && pattern_valid
 }
 
@@ -87,7 +117,7 @@ fn numeric_ordering(value: &Value, bound: &Value) -> Option<std::cmp::Ordering> 
     value.as_f64()?.partial_cmp(&bound.as_f64()?)
 }
 
-fn matches_array(schema: &Value, value: &Value) -> bool {
+fn matches_array(cache: &mut PatternCache, schema: &Value, value: &Value) -> bool {
     let Some(items) = value.as_array() else {
         return false;
     };
@@ -97,7 +127,9 @@ fn matches_array(schema: &Value, value: &Value) -> bool {
     let Some(item_schema) = schema.get("items") else {
         return false;
     };
-    let items_valid = items.iter().all(|item| matches_schema(item_schema, item));
+    let items_valid = items
+        .iter()
+        .all(|item| matches_schema(cache, item_schema, item));
     let unique_valid =
         schema.get("uniqueItems").and_then(Value::as_bool) != Some(true) || unique_values(items);
     length_valid && items_valid && unique_valid
@@ -118,7 +150,7 @@ fn length_in_bounds(length: usize, minimum: Option<u64>, maximum: Option<u64>) -
     })
 }
 
-fn matches_object(schema: &Value, value: &Value) -> bool {
+fn matches_object(cache: &mut PatternCache, schema: &Value, value: &Value) -> bool {
     let (Some(properties), Some(object)) = (
         schema.get("properties").and_then(Value::as_object),
         value.as_object(),
@@ -137,7 +169,28 @@ fn matches_object(schema: &Value, value: &Value) -> bool {
     let values_valid = object.iter().all(|(name, item)| {
         properties
             .get(name)
-            .is_some_and(|item_schema| matches_schema(item_schema, item))
+            .is_some_and(|item_schema| matches_schema(cache, item_schema, item))
     });
     required_valid && names_valid && values_valid
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::{PatternCache, matches_schema};
+
+    #[test]
+    fn compiles_each_pattern_once_per_validation() {
+        let schema = json!({
+            "type": "array",
+            "minItems": 1,
+            "items": {"type": "string", "pattern": "^[0-9a-f]{2}$"}
+        });
+        let value = json!(["a0", "b1", "c2", "d3", "e4"]);
+        let mut cache = PatternCache::default();
+
+        assert!(matches_schema(&mut cache, &schema, &value));
+        assert_eq!(cache.compilations(), 1);
+    }
 }
