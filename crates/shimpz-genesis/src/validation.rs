@@ -18,6 +18,7 @@ const RESERVED_SUFFIXES: [&str; 11] = [
 
 pub(crate) fn validate_manifest(manifest: &AssistantManifest) -> Result<(), ManifestError> {
     require(manifest.spec == SPEC_VERSION, "unsupported Assistant spec")?;
+    validate_assistant_id(&manifest.id)?;
     require(
         manifest.version.pre.is_empty() && manifest.version.build.is_empty(),
         "version must be a stable SemVer",
@@ -30,6 +31,19 @@ pub(crate) fn validate_manifest(manifest: &AssistantManifest) -> Result<(), Mani
     validate_hosts(&manifest.allowed_hosts)?;
     validate_accounts(manifest)?;
     Ok(())
+}
+
+fn validate_assistant_id(value: &str) -> Result<(), ManifestError> {
+    let valid = !value.is_empty()
+        && value.len() <= 40
+        && value.starts_with(|character: char| character.is_ascii_lowercase())
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
+        && !value.ends_with('-')
+        && !value.contains("--")
+        && !matches!(value, "postgres" | "app-egress-proxy");
+    require(valid, "Assistant id is invalid")
 }
 
 fn validate_line(value: &str, maximum: usize, field: &str) -> Result<(), ManifestError> {

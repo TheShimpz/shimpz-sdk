@@ -1,9 +1,12 @@
 //! Assistant manifest acceptance tests.
 
+use serde::Deserialize;
+use sha2::{Digest, Sha256};
 use shimpz_genesis::{AssistantManifest, SPEC_VERSION};
 
 const VALID: &str = r#"
 spec = 1
+id = "shimpz-cloudflare"
 version = "0.1.0"
 name = "Shimpz Cloudflare"
 summary = "Manage Cloudflare DNS records."
@@ -18,13 +21,48 @@ Manage DNS only after validating the requested zone.
 scopes = ["dns.read", "offline_access"]
 "#;
 
+// Byte-identical to TheShimpz/shimpz@0460624:contracts/assistant/v1/manifest-id-vectors.json.
+const ID_VECTORS: &str = include_str!("fixtures/manifest-id-vectors.json");
+const ID_VECTORS_SHA256: &str = "2d26636396d4fee56ce1dfa7a4adb4f1da64155e197eb3ba2f657768ac3d7b9d";
+
+#[derive(Deserialize)]
+struct IdVectors {
+    version: u8,
+    missing_is_invalid: bool,
+    valid: Vec<String>,
+    invalid: Vec<Option<String>>,
+}
+
 #[test]
 fn parses_a_complete_manifest() {
     let manifest = AssistantManifest::parse(VALID).expect("valid manifest");
 
     assert_eq!(manifest.spec(), SPEC_VERSION);
+    assert_eq!(manifest.id(), "shimpz-cloudflare");
     assert_eq!(manifest.version().to_string(), "0.1.0");
     assert_eq!(manifest.accounts()["cloudflare"].scopes().len(), 2);
+}
+
+#[test]
+fn matches_the_umbrella_assistant_id_vectors() {
+    assert_eq!(
+        format!("{:x}", Sha256::digest(ID_VECTORS.as_bytes())),
+        ID_VECTORS_SHA256
+    );
+    let vectors: IdVectors = serde_json::from_str(ID_VECTORS).expect("valid root vectors");
+    assert_eq!(vectors.version, 1);
+    assert!(vectors.missing_is_invalid);
+
+    for id in vectors.valid {
+        let source = VALID.replace("id = \"shimpz-cloudflare\"", &format!("id = \"{id}\""));
+        let manifest = AssistantManifest::parse(&source).expect("valid Assistant id");
+        assert_eq!(manifest.id(), id);
+    }
+    for id in vectors.invalid {
+        let replacement = id.map_or_else(String::new, |value| format!("id = \"{value}\""));
+        let source = VALID.replace("id = \"shimpz-cloudflare\"", &replacement);
+        assert!(AssistantManifest::parse(&source).is_err());
+    }
 }
 
 #[test]

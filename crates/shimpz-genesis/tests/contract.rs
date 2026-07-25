@@ -5,6 +5,7 @@ use shimpz_genesis::{AssistantContract, AssistantManifest, PowerContract};
 
 const MANIFEST: &str = r#"
 spec = 1
+id = "dns"
 version = "0.1.0"
 name = "DNS"
 summary = "Manage DNS records."
@@ -19,6 +20,7 @@ scopes = ["dns.read"]
 
 const NO_ACCOUNTS: &str = r#"
 spec = 1
+id = "dns"
 version = "0.1.0"
 name = "DNS"
 summary = "Manage DNS records."

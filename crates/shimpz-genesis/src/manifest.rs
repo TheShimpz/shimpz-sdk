@@ -31,6 +31,7 @@ impl AccountIntent {
 /// use std::collections::BTreeMap;
 /// let _sealed = AssistantManifest {
 ///     spec: 1,
+///     id: "example".to_string(),
 ///     version: "0.1.0".parse().unwrap(),
 ///     name: "n".to_string(),
 ///     summary: "s".to_string(),
@@ -46,6 +47,8 @@ impl AccountIntent {
 pub struct AssistantManifest {
     /// Assistant Spec version. Only version 1 is valid.
     pub(crate) spec: u8,
+    /// Stable public Assistant identity.
+    pub(crate) id: String,
     /// Independently released Assistant version.
     pub(crate) version: Version,
     /// Human-facing Assistant name.
@@ -83,6 +86,12 @@ impl AssistantManifest {
     #[must_use]
     pub const fn spec(&self) -> u8 {
         self.spec
+    }
+
+    /// Return the stable public Assistant identity.
+    #[must_use]
+    pub fn id(&self) -> &str {
+        &self.id
     }
 
     /// Return the independently released Assistant version.

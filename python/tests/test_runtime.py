@@ -9,6 +9,7 @@ from shimpz._runtime import PowerExecutionError, invoke_power
 
 MANIFEST = """
 spec = 1
+id = "shimpz-cloudflare"
 version = "0.1.0"
 name = "Cloudflare"
 summary = "Manage DNS records."

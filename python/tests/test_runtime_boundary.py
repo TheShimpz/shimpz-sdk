@@ -11,6 +11,7 @@ import pytest
 
 MANIFEST = """
 spec = 1
+id = "example"
 version = "0.1.0"
 name = "Example"
 summary = "Test an example."
