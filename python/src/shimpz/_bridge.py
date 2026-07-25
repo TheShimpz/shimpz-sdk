@@ -22,6 +22,9 @@ def main(arguments: list[str] | None = None) -> int:
     except (OSError, UnicodeError, TypeError, ValueError, PowerExecutionError) as error:
         sys.stderr.write(f"shimpz: {error}\n")
         return 1
+    except SystemExit, KeyboardInterrupt:
+        sys.stderr.write("shimpz: aborted\n")
+        return 1
     sys.stdout.write(output)
     sys.stdout.write("\n")
     return 0

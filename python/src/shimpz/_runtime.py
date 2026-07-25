@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import inspect
 import json
+import sys
 from collections.abc import Mapping
 from typing import Any
 
@@ -37,7 +39,11 @@ async def invoke_power(
     arguments = dict(input_value)
     if "ctx" in inspect.signature(definition.body).parameters:
         arguments["ctx"] = context
-    result = (await asyncio.gather(definition.body(**arguments), return_exceptions=True))[0]
+    with contextlib.redirect_stdout(sys.stderr):
+        try:
+            result = (await asyncio.gather(definition.body(**arguments), return_exceptions=True))[0]
+        except (SystemExit, KeyboardInterrupt) as error:
+            result = error
     if isinstance(result, BaseException):
         message = "Power execution failed"
         raise PowerExecutionError(message) from None
