@@ -37,7 +37,7 @@ def test_compiles_annotations_without_field_declarations() -> None:
 
 
 def test_excludes_the_reserved_context_parameter() -> None:
-    async def run(zone: str, *, ctx: object = None) -> DnsRecord:
+    async def run(zone: str, *, ctx: object) -> DnsRecord:
         raise NotImplementedError
 
     input_schema, _ = compile_power_schemas(run)

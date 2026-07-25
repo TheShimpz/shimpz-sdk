@@ -18,7 +18,7 @@ class CreatedDns(TypedDict):
 
 
 @power(accounts=["cloudflare"])
-async def run(zone: str, *, ctx: Context = None) -> CreatedDns:
+async def run(zone: str, *, ctx: Context) -> CreatedDns:
     token = ctx.accounts.cloudflare.access_token
     ...
 ```

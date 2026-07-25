@@ -97,9 +97,9 @@ def _validate_parameter(
 
 
 def _validate_context(parameter: inspect.Parameter) -> None:
-    valid = parameter.kind is inspect.Parameter.KEYWORD_ONLY and parameter.default is None
+    valid = parameter.kind is inspect.Parameter.KEYWORD_ONLY and parameter.default is inspect.Signature.empty
     if not valid:
-        message = "ctx must be keyword-only with a None default"
+        message = "ctx must be keyword-only without a default"
         raise TypeError(message)
 
 

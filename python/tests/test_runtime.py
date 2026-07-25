@@ -32,7 +32,7 @@ class Result(TypedDict):
 
 
 @power(accounts=["cloudflare"])
-async def run(zone: str, *, ctx: Context = None) -> Result:
+async def run(zone: str, *, ctx: Context) -> Result:
     return {"token_length": len(ctx.accounts.cloudflare.access_token)}
 """
 
