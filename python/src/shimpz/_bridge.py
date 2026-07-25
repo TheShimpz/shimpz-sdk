@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 from typing import Any, TextIO
 
+from ._json import strict_loads
 from ._project import AssistantProject
 from ._runtime import PowerExecutionError, invoke_power
 
@@ -56,11 +57,11 @@ def _request(source: TextIO) -> dict[str, dict[str, Any]]:
     if not 0 < len(raw.encode()) <= _MAX_REQUEST_BYTES:
         message = "private bridge request is invalid"
         raise ValueError(message)
-    payload = json.loads(
-        raw,
-        parse_constant=_reject_constant,
-        object_pairs_hook=_unique_object,
-    )
+    try:
+        payload = strict_loads(raw)
+    except ValueError as error:
+        message = "private bridge request is invalid"
+        raise ValueError(message) from error
     valid = (
         isinstance(payload, dict)
         and set(payload) == {"input", "accounts"}
@@ -72,21 +73,6 @@ def _request(source: TextIO) -> dict[str, dict[str, Any]]:
         message = "private bridge request is invalid"
         raise ValueError(message)
     return payload
-
-
-def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-    value: dict[str, Any] = {}
-    for key, item in pairs:
-        if key in value:
-            message = "private bridge request is invalid"
-            raise ValueError(message)
-        value[key] = item
-    return value
-
-
-def _reject_constant(_value: str) -> None:
-    message = "private bridge request is invalid"
-    raise ValueError(message)
 
 
 def _json(value: object) -> str:
