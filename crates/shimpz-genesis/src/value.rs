@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use regex::Regex;
 use serde_json::Value;
 
@@ -45,6 +43,8 @@ fn matches_string(schema: &Value, value: &Value) -> bool {
         .get("enum")
         .and_then(Value::as_array)
         .is_none_or(|options| options.iter().any(|option| option.as_str() == Some(text)));
+    // `$` anchors the exact end of the string; a trailing newline does not
+    // match (deliberate divergence from Python `re`).
     let pattern_valid = schema
         .get("pattern")
         .and_then(Value::as_str)
@@ -53,10 +53,12 @@ fn matches_string(schema: &Value, value: &Value) -> bool {
 }
 
 fn matches_integer(schema: &Value, value: &Value) -> bool {
-    if value.as_i64().is_none() && value.as_u64().is_none() {
-        return false;
-    }
-    matches_numeric_bounds(schema, value)
+    // Draft 2020-12: an integer is any number with a zero fractional part, so
+    // 1.0 is a valid integer.
+    let is_integer = value.as_i64().is_some()
+        || value.as_u64().is_some()
+        || value.as_f64().is_some_and(|number| number.fract() == 0.0);
+    is_integer && matches_numeric_bounds(schema, value)
 }
 
 fn matches_number(schema: &Value, value: &Value) -> bool {
@@ -64,17 +66,25 @@ fn matches_number(schema: &Value, value: &Value) -> bool {
 }
 
 fn matches_numeric_bounds(schema: &Value, value: &Value) -> bool {
-    let Some(number) = value.as_f64() else {
+    if value.as_f64().is_none() {
         return false;
-    };
+    }
     schema
         .get("minimum")
-        .and_then(Value::as_f64)
-        .is_none_or(|bound| number >= bound)
-        && schema
-            .get("maximum")
-            .and_then(Value::as_f64)
-            .is_none_or(|bound| number <= bound)
+        .is_none_or(|bound| numeric_ordering(value, bound).is_some_and(std::cmp::Ordering::is_ge))
+        && schema.get("maximum").is_none_or(|bound| {
+            numeric_ordering(value, bound).is_some_and(std::cmp::Ordering::is_le)
+        })
+}
+
+fn numeric_ordering(value: &Value, bound: &Value) -> Option<std::cmp::Ordering> {
+    if let (Some(left), Some(right)) = (value.as_i64(), bound.as_i64()) {
+        return Some(left.cmp(&right));
+    }
+    if let (Some(left), Some(right)) = (value.as_u64(), bound.as_u64()) {
+        return Some(left.cmp(&right));
+    }
+    value.as_f64()?.partial_cmp(&bound.as_f64()?)
 }
 
 fn matches_array(schema: &Value, value: &Value) -> bool {
@@ -94,8 +104,12 @@ fn matches_array(schema: &Value, value: &Value) -> bool {
 }
 
 fn unique_values(values: &[Value]) -> bool {
-    let mut unique = HashSet::new();
-    values.iter().all(|value| unique.insert(value.to_string()))
+    // Structural JSON equality: 1 and 1.0 are distinct, matching this
+    // validator's number handling.
+    values
+        .iter()
+        .enumerate()
+        .all(|(index, value)| !values[..index].contains(value))
 }
 
 fn length_in_bounds(length: usize, minimum: Option<u64>, maximum: Option<u64>) -> bool {

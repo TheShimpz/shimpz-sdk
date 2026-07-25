@@ -52,3 +52,26 @@ fn never_returns_private_values_in_errors() {
     assert_eq!(error.message(), "value does not match schema");
     assert!(!error.to_string().contains("private-token"));
 }
+
+#[test]
+fn matches_draft_2020_12_numeric_and_uniqueness_semantics() {
+    let bounded = json!({"type": "integer", "maximum": 9_007_199_254_740_992_i64});
+    validate_value(&bounded, &json!(9_007_199_254_740_992_i64)).expect("2^53 within bound");
+    assert!(validate_value(&bounded, &json!(9_007_199_254_740_993_i64)).is_err());
+
+    let integer = json!({"type": "integer"});
+    validate_value(&integer, &json!(1.0)).expect("1.0 is an integer");
+    assert!(validate_value(&integer, &json!(1.5)).is_err());
+
+    let unique = json!({
+        "type": "array",
+        "uniqueItems": true,
+        "items": {"type": "number"}
+    });
+    validate_value(&unique, &json!([1, 1.0])).expect("1 and 1.0 are distinct");
+    assert!(validate_value(&unique, &json!([1, 1])).is_err());
+
+    let pattern = json!({"type": "string", "pattern": "^public$"});
+    validate_value(&pattern, &json!("public")).expect("exact match");
+    assert!(validate_value(&pattern, &json!("public\n")).is_err());
+}
