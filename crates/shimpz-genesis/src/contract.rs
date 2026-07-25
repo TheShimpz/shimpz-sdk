@@ -15,8 +15,6 @@ const MAX_SCHEMA_BYTES: usize = 128 * 1024;
 #[derive(Clone, Debug, Serialize, PartialEq)]
 pub struct PowerContract {
     id: String,
-    method: &'static str,
-    path: String,
     accounts: Vec<String>,
     input_schema: Value,
     output_schema: Value,
@@ -38,9 +36,7 @@ impl PowerContract {
         let id = id.into();
         validate_power(&id, &accounts, &input_schema, &output_schema)?;
         Ok(Self {
-            path: format!("/v1/powers/{id}"),
             id,
-            method: "POST",
             accounts,
             input_schema,
             output_schema,

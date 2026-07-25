@@ -54,7 +54,12 @@ def test_discovers_one_power_per_python_file(tmp_path: Path) -> None:
     contract = json.loads(project.contract())
 
     assert contract["version"] == 1
-    assert contract["powers"][0]["path"] == "/v1/powers/create-dns"
+    assert set(contract["powers"][0]) == {
+        "id",
+        "accounts",
+        "input_schema",
+        "output_schema",
+    }
 
 
 def test_loads_optional_project_lib_modules(tmp_path: Path) -> None:
