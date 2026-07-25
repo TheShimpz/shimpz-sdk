@@ -4,7 +4,10 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use serde::Deserialize;
 use serde_json::Value;
-use shimpz_genesis::{AssistantContract, AssistantManifest, PowerContract, validate_value};
+use shimpz_genesis::{
+    AssistantContract, AssistantManifest, PowerContract, SourceEntry, SourceEntryKind,
+    validate_source_tree as validate_tree, validate_value,
+};
 
 #[derive(Deserialize)]
 struct PowerInput {
@@ -14,11 +17,32 @@ struct PowerInput {
     output_schema: Value,
 }
 
+#[derive(Deserialize)]
+struct SourceEntryInput {
+    path: String,
+    kind: String,
+    size: u64,
+}
+
 #[pyfunction]
 fn validate_manifest(source: &str) -> PyResult<()> {
     AssistantManifest::parse(source)
         .map(|_| ())
         .map_err(value_error)
+}
+
+#[pyfunction]
+fn validate_source_tree(entries_json: &str) -> PyResult<()> {
+    let inputs: Vec<SourceEntryInput> = serde_json::from_str(entries_json)
+        .map_err(|_| PyValueError::new_err("source entries JSON is invalid"))?;
+    let entries = inputs
+        .into_iter()
+        .map(|input| {
+            let kind = source_entry_kind(&input.kind)?;
+            Ok(SourceEntry::new(input.path, kind, input.size))
+        })
+        .collect::<PyResult<Vec<_>>>()?;
+    validate_tree(&entries).map_err(value_error)
 }
 
 #[pyfunction]
@@ -52,6 +76,19 @@ fn validate_json(schema_json: &str, value_json: &str) -> PyResult<()> {
     validate_value(&schema, &value).map_err(value_error)
 }
 
+fn source_entry_kind(kind: &str) -> PyResult<SourceEntryKind> {
+    match kind {
+        "regular_file" => Ok(SourceEntryKind::RegularFile),
+        "symlink" => Ok(SourceEntryKind::Symlink),
+        "hardlink" => Ok(SourceEntryKind::Hardlink),
+        "fifo" => Ok(SourceEntryKind::Fifo),
+        "character_device" => Ok(SourceEntryKind::CharacterDevice),
+        "block_device" => Ok(SourceEntryKind::BlockDevice),
+        "socket" => Ok(SourceEntryKind::Socket),
+        _ => Err(PyValueError::new_err("source entry kind is invalid")),
+    }
+}
+
 fn value_error(error: impl std::fmt::Display) -> PyErr {
     PyValueError::new_err(error.to_string())
 }
@@ -61,5 +98,6 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(build_contract, module)?)?;
     module.add_function(wrap_pyfunction!(validate_json, module)?)?;
     module.add_function(wrap_pyfunction!(validate_manifest, module)?)?;
+    module.add_function(wrap_pyfunction!(validate_source_tree, module)?)?;
     Ok(())
 }

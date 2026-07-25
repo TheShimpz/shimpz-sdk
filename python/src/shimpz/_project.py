@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import re
+import stat
 import sys
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -54,6 +55,7 @@ class AssistantProject:
         manifest_source = _read_manifest(resolved)
         _native.validate_manifest(manifest_source)
         files = _power_files(resolved)
+        _native.validate_source_tree(_source_entries_json(resolved, files))
         with _import_path(resolved):
             powers = tuple(_load_power(path) for path in files)
         return cls(root=resolved, manifest_source=manifest_source, powers=powers)
@@ -87,6 +89,44 @@ def _power_files(root: Path) -> tuple[Path, ...]:
         message = "powers/ must contain at least one Power"
         raise ValueError(message)
     return tuple(sorted(entries))
+
+
+def _source_entries_json(root: Path, powers: tuple[Path, ...]) -> str:
+    paths = [root / "shimpz.toml", root / "pyproject.toml", *powers]
+    for directory_name in ("lib", "tests"):
+        directory = root / directory_name
+        if directory.is_symlink() or (directory.exists() and not directory.is_dir()):
+            paths.append(directory)
+        elif directory.is_dir():
+            paths.extend(path for path in directory.rglob("*") if not path.is_dir(follow_symlinks=False))
+    entries = [_source_entry(root, path) for path in paths if path.exists() or path.is_symlink()]
+    return json.dumps(entries, ensure_ascii=True, allow_nan=False, separators=(",", ":"))
+
+
+def _source_entry(root: Path, path: Path) -> dict[str, object]:
+    metadata = path.stat(follow_symlinks=False)
+    return {
+        "path": path.relative_to(root).as_posix(),
+        "kind": _source_entry_kind(metadata.st_mode, metadata.st_nlink),
+        "size": metadata.st_size,
+    }
+
+
+def _source_entry_kind(mode: int, link_count: int) -> str:
+    if stat.S_ISLNK(mode):
+        return "symlink"
+    if stat.S_ISREG(mode):
+        return "hardlink" if link_count > 1 else "regular_file"
+    if stat.S_ISFIFO(mode):
+        return "fifo"
+    if stat.S_ISCHR(mode):
+        return "character_device"
+    if stat.S_ISBLK(mode):
+        return "block_device"
+    if stat.S_ISSOCK(mode):
+        return "socket"
+    message = "source tree contains an invalid entry"
+    raise ValueError(message)
 
 
 def _load_power(path: Path) -> PowerDefinition:

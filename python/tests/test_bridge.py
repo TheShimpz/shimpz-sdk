@@ -38,6 +38,7 @@ async def run(name: str) -> Result:
 def create_project(root: Path) -> Path:
     root.mkdir()
     (root / "shimpz.toml").write_text(MANIFEST, encoding="utf-8")
+    (root / "pyproject.toml").write_text("[project]\nname = 'assistant'\n", encoding="utf-8")
     powers = root / "powers"
     powers.mkdir()
     (powers / "greet.py").write_text(POWER, encoding="utf-8")

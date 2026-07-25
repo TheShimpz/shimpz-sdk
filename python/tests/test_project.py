@@ -40,6 +40,7 @@ async def run(zone: str) -> Result:
 def create_project(root: Path, *, power_name: str = "create_dns.py", power_source: str = POWER) -> Path:
     root.mkdir()
     (root / "shimpz.toml").write_text(MANIFEST, encoding="utf-8")
+    (root / "pyproject.toml").write_text("[project]\nname = 'assistant'\n", encoding="utf-8")
     powers = root / "powers"
     powers.mkdir()
     (powers / power_name).write_text(power_source, encoding="utf-8")
@@ -86,6 +87,34 @@ def test_requires_the_powers_directory(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="powers/ is required"):
         AssistantProject.load(root)
+
+
+def test_requires_pyproject_for_a_publishable_source_tree(tmp_path: Path) -> None:
+    root = create_project(tmp_path / "assistant")
+    (root / "pyproject.toml").unlink(missing_ok=True)
+
+    with pytest.raises(ValueError, match="missing_required_file"):
+        AssistantProject.load(root)
+
+
+def test_rejects_links_inside_publishable_source_directories(tmp_path: Path) -> None:
+    root = create_project(tmp_path / "assistant")
+    (root / "pyproject.toml").write_text("[project]\nname = 'assistant'\n", encoding="utf-8")
+    library = root / "lib"
+    library.mkdir()
+    (library / "outside.py").symlink_to(tmp_path / "outside.py")
+
+    with pytest.raises(ValueError, match="special_file"):
+        AssistantProject.load(root)
+
+
+def test_ignores_local_root_files_outside_the_source_allowlist(tmp_path: Path) -> None:
+    root = create_project(tmp_path / "assistant")
+    (root / "README.md").write_text("Local notes.\n", encoding="utf-8")
+
+    project = AssistantProject.load(root)
+
+    assert project.powers[0].id == "create-dns"
 
 
 def test_rejects_non_snake_case_power_files(tmp_path: Path) -> None:
