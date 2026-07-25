@@ -67,6 +67,18 @@ fn rejects_duplicate_or_reserved_hosts() {
 }
 
 #[test]
+fn rejects_ip_literals_numeric_tlds_and_lan_hosts() {
+    for host in ["169.254.169.254", "10.0.0.1", "router.lan", "example.123"] {
+        let source = VALID.replace(
+            "allowed_hosts = [\"api.cloudflare.com\"]",
+            &format!("allowed_hosts = [\"{host}\"]"),
+        );
+        let error = AssistantManifest::parse(&source).expect_err("non-public host");
+        assert_eq!(error.message(), "allowed_hosts are invalid");
+    }
+}
+
+#[test]
 fn rejects_invalid_account_intent() {
     for replacement in [
         "[accounts.Cloudflare]",

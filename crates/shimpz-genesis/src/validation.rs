@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use crate::{AssistantManifest, ManifestError, SPEC_VERSION};
 
-const RESERVED_SUFFIXES: [&str; 10] = [
+const RESERVED_SUFFIXES: [&str; 11] = [
     "arpa",
     "example",
     "internal",
@@ -10,6 +10,7 @@ const RESERVED_SUFFIXES: [&str; 10] = [
     "local",
     "localdomain",
     "localhost",
+    "lan",
     "onion",
     "test",
     "home",
@@ -106,10 +107,14 @@ fn valid_host(host: &str) -> bool {
         return false;
     }
     let labels_valid = host.split('.').all(|label| valid_slug(label, 63, false));
+    let tld_starts_with_letter = host
+        .rsplit('.')
+        .next()
+        .is_some_and(|label| label.starts_with(|character: char| character.is_ascii_lowercase()));
     let suffix_reserved = RESERVED_SUFFIXES
         .iter()
         .any(|suffix| host == *suffix || host.ends_with(&format!(".{suffix}")));
-    labels_valid && !suffix_reserved
+    labels_valid && tld_starts_with_letter && !suffix_reserved
 }
 
 fn validate_accounts(manifest: &AssistantManifest) -> Result<(), ManifestError> {
