@@ -23,6 +23,7 @@ jobs:
           crate_version="$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "shimpz-genesis") | .version')"
           test "${tag_version}" = "${crate_version}"
       - run: cargo test --locked --package shimpz-genesis
+      - run: cargo clippy --locked --package shimpz-genesis --all-targets --all-features -- -D warnings
       - run: cargo package --locked --package shimpz-genesis
       - name: Authenticate to crates.io
         id: crates
