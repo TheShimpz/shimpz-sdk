@@ -27,7 +27,7 @@ class OAuthAccount:
 
 
 class Accounts:
-    """Read-only OAuth accounts addressable by manifest id."""
+    """Read-only OAuth accounts addressable by manifest id; use subscript access for hyphenated ids."""
 
     __slots__ = ("__values",)
 

@@ -23,4 +23,6 @@ async def run(zone: str, *, ctx: Context) -> CreatedDns:
     ...
 ```
 
+Attribute access (`ctx.accounts.cloudflare`) is a convenience for identifier-safe ids; for ids containing hyphens use subscript access, e.g. `ctx.accounts['cloudflare-api'].access_token`.
+
 The native `_native` module is private and may not be imported by Assistants.
