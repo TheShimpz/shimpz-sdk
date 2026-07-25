@@ -9,6 +9,7 @@ use crate::validation::valid_id;
 use crate::{AssistantManifest, ContractError, SPEC_VERSION};
 
 const MAX_CONTRACT_BYTES: usize = 512 * 1024;
+const MAX_SCHEMA_BYTES: usize = 128 * 1024;
 
 /// One reviewed Power in the generated machine contract.
 #[derive(Clone, Debug, Serialize, PartialEq)]
@@ -78,6 +79,11 @@ impl AssistantContract {
         mut powers: Vec<PowerContract>,
     ) -> Result<Self, ContractError> {
         powers.sort_by(|left, right| left.id.cmp(&right.id));
+        if !(1..=128).contains(&powers.len()) {
+            return Err(ContractError::new(
+                "Power catalog must contain 1 to 128 Powers",
+            ));
+        }
         validate_catalog(manifest, &powers)?;
         let contract = Self {
             version: SPEC_VERSION,
@@ -131,6 +137,9 @@ fn validate_power(
     if !valid_id(id) {
         return Err(ContractError::new("Power id is invalid"));
     }
+    if accounts.len() > 4 {
+        return Err(ContractError::new("Power declares too many Accounts"));
+    }
     let mut unique = HashSet::new();
     if accounts
         .iter()
@@ -139,7 +148,19 @@ fn validate_power(
         return Err(ContractError::new("Power accounts are invalid"));
     }
     validate_root_schema(input_schema)?;
-    validate_root_schema(output_schema)
+    validate_root_schema(output_schema)?;
+    schema_within_limit(input_schema)?;
+    schema_within_limit(output_schema)?;
+    Ok(())
+}
+
+fn schema_within_limit(schema: &Value) -> Result<(), ContractError> {
+    let encoded = serde_json::to_vec(schema)
+        .map_err(|_| ContractError::new("Power schema cannot be serialized"))?;
+    if encoded.len() > MAX_SCHEMA_BYTES {
+        return Err(ContractError::new("Power schema is too large"));
+    }
+    Ok(())
 }
 
 fn validate_catalog(

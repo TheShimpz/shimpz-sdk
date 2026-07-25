@@ -145,6 +145,7 @@ pub(crate) fn valid_id(value: &str) -> bool {
             .bytes()
             .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
         && !value.ends_with('-')
+        && !value.contains("--")
 }
 
 fn valid_scope(value: &str) -> bool {

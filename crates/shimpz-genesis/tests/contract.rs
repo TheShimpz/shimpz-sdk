@@ -17,6 +17,17 @@ genesis = "Manage DNS safely."
 scopes = ["dns.read"]
 "#;
 
+const NO_ACCOUNTS: &str = r#"
+spec = 1
+version = "0.1.0"
+name = "DNS"
+summary = "Manage DNS records."
+creators = ["@roxygens"]
+github = "https://github.com/TheShimpz/dns"
+allowed_hosts = ["api.cloudflare.com"]
+genesis = "Manage DNS safely."
+"#;
+
 fn schema() -> Value {
     json!({
         "type": "object",
@@ -155,4 +166,50 @@ fn accepts_closed_nested_objects_and_arrays() {
     });
 
     PowerContract::new("list-zones", Vec::new(), schema(), nested).expect("supported schema");
+}
+
+#[test]
+fn rejects_more_than_four_accounts_per_power() {
+    let error = PowerContract::new(
+        "list-zones",
+        vec!["a".into(), "b".into(), "c".into(), "d".into(), "e".into()],
+        schema(),
+        schema(),
+    )
+    .expect_err("too many accounts");
+    assert_eq!(error.message(), "Power declares too many Accounts");
+}
+
+#[test]
+fn rejects_empty_and_oversized_power_catalogs() {
+    let manifest = AssistantManifest::parse(NO_ACCOUNTS).expect("valid manifest");
+    let none = AssistantContract::build(&manifest, Vec::new()).expect_err("zero powers");
+    assert_eq!(none.message(), "Power catalog must contain 1 to 128 Powers");
+
+    let many: Vec<PowerContract> = (0..129)
+        .map(|index| power(&format!("p{index}"), Vec::new()))
+        .collect();
+    let over = AssistantContract::build(&manifest, many).expect_err("129 powers");
+    assert_eq!(over.message(), "Power catalog must contain 1 to 128 Powers");
+}
+
+#[test]
+fn rejects_oversized_and_hyphen_powers() {
+    let mut properties = serde_json::Map::new();
+    for index in 0..10_000 {
+        properties.insert(format!("p{index}"), json!({"type": "string"}));
+    }
+    let big = json!({
+        "type": "object",
+        "additionalProperties": false,
+        "required": [],
+        "properties": properties
+    });
+    let size =
+        PowerContract::new("list-zones", Vec::new(), big, schema()).expect_err("oversized schema");
+    assert_eq!(size.message(), "Power schema is too large");
+
+    let id =
+        PowerContract::new("a--b", Vec::new(), schema(), schema()).expect_err("double hyphen id");
+    assert_eq!(id.message(), "Power id is invalid");
 }
