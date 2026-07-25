@@ -1,6 +1,6 @@
 [package]
 name = "shimpz-genesis"
-version = "0.1.0"
+version = "0.1.1"
 description = "Language-neutral foundation for Shimpz Assistant SDKs"
 edition.workspace = true
 homepage.workspace = true
