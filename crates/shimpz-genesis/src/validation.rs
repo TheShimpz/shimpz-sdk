@@ -34,17 +34,23 @@ pub(crate) fn validate_manifest(manifest: &AssistantManifest) -> Result<(), Mani
 
 fn validate_line(value: &str, maximum: usize, field: &str) -> Result<(), ManifestError> {
     let valid = !value.is_empty()
-        && value.len() <= maximum
+        && value.chars().count() <= maximum
         && value.trim() == value
-        && !value.contains(['\r', '\n']);
+        && !value.chars().any(|character| {
+            let codepoint = u32::from(character);
+            codepoint < 32 || codepoint == 127
+        });
     require(valid, format!("{field} is invalid"))
 }
 
 fn validate_genesis(value: &str) -> Result<(), ManifestError> {
-    require(
-        !value.trim().is_empty() && value.len() <= 65_536,
-        "genesis is invalid",
-    )
+    let valid = !value.trim().is_empty()
+        && value.chars().count() <= 65_536
+        && !value.chars().any(|character| {
+            let codepoint = u32::from(character);
+            (codepoint < 32 || codepoint == 127) && character != '\n' && character != '\t'
+        });
+    require(valid, "genesis is invalid")
 }
 
 fn validate_creators(creators: &[String]) -> Result<(), ManifestError> {

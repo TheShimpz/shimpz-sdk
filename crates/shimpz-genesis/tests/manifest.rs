@@ -79,6 +79,23 @@ fn rejects_ip_literals_numeric_tlds_and_lan_hosts() {
 }
 
 #[test]
+fn rejects_control_characters_in_name() {
+    let source = VALID.replace(
+        "name = \"Shimpz Cloudflare\"",
+        "name = \"Shimpz\\u001bCloudflare\"",
+    );
+    let error = AssistantManifest::parse(&source).expect_err("control character");
+    assert_eq!(error.message(), "name is invalid");
+}
+
+#[test]
+fn accepts_multibyte_name_at_the_codepoint_boundary() {
+    let name = "\u{00e9}".repeat(80);
+    let source = VALID.replace("Shimpz Cloudflare", &name);
+    AssistantManifest::parse(&source).expect("80-codepoint multibyte name within bound");
+}
+
+#[test]
 fn rejects_invalid_account_intent() {
     for replacement in [
         "[accounts.Cloudflare]",
