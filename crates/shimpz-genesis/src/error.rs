@@ -54,6 +54,32 @@ impl Display for ContractError {
 
 impl std::error::Error for ContractError {}
 
+/// A stable source-package tree validation failure.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SourceTreeError {
+    code: &'static str,
+}
+
+impl SourceTreeError {
+    pub(crate) const fn new(code: &'static str) -> Self {
+        Self { code }
+    }
+
+    /// Return the language-neutral rejection code.
+    #[must_use]
+    pub const fn code(&self) -> &'static str {
+        self.code
+    }
+}
+
+impl Display for SourceTreeError {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "source tree is invalid: {}", self.code)
+    }
+}
+
+impl std::error::Error for SourceTreeError {}
+
 /// A schema mismatch that never includes the private value.
 #[derive(Debug, Eq, PartialEq)]
 pub struct ValueError {

@@ -4,12 +4,14 @@ mod contract;
 mod error;
 mod manifest;
 mod schema;
+mod source_tree;
 mod validation;
 mod value;
 
 pub use contract::{AssistantContract, PowerContract};
-pub use error::{ContractError, ManifestError, ValueError};
+pub use error::{ContractError, ManifestError, SourceTreeError, ValueError};
 pub use manifest::{AccountIntent, AssistantManifest};
+pub use source_tree::{SourceEntry, SourceEntryKind, validate_source_tree};
 pub use value::validate_value;
 
 /// The only supported Assistant Spec version.
