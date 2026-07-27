@@ -130,3 +130,29 @@ def test_requires_a_decorated_run(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="@power async def run"):
         AssistantProject.load(root)
+
+
+def test_reports_the_source_of_an_unsupported_parameter_annotation(tmp_path: Path) -> None:
+    source = POWER.replace("zone: str", "zone: dict[str, str]")
+    root = create_project(tmp_path / "assistant", power_source=source)
+
+    with pytest.raises(TypeError) as failure:
+        AssistantProject.load(root)
+
+    assert str(failure.value) == (
+        "powers/create_dns.py:12: unsupported Power type annotation: "
+        "parameter 'zone' uses dict[str, str]"
+    )
+
+
+def test_reports_the_source_of_an_unsupported_typed_dict_field(tmp_path: Path) -> None:
+    source = POWER.replace("created: bool", "created: dict[str, str]")
+    root = create_project(tmp_path / "assistant", power_source=source)
+
+    with pytest.raises(TypeError) as failure:
+        AssistantProject.load(root)
+
+    assert str(failure.value) == (
+        "powers/create_dns.py:8: unsupported Power type annotation: "
+        "field 'created' uses dict[str, str]"
+    )

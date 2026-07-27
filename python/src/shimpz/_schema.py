@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import inspect
 import re
+from pathlib import Path
 from typing import Annotated, Literal, NotRequired, Required, get_args, get_origin, get_type_hints, is_typeddict
+
+from ._source import AnnotationSite
 
 type JsonSchema = dict[str, object]
 
@@ -32,7 +35,17 @@ _ALLOWED_CONSTRAINTS = {
 }
 
 
-def compile_power_schemas(body: object) -> tuple[JsonSchema, JsonSchema]:
+class _SchemaFailure(TypeError):
+    def __init__(self, message: str, annotation: object) -> None:
+        super().__init__(message)
+        self.annotation = annotation
+
+
+def compile_power_schemas(
+    body: object,
+    *,
+    project_root: Path | None = None,
+) -> tuple[JsonSchema, JsonSchema]:
     """Compile one Power signature into closed input and output schemas."""
     if not callable(body):
         message = "Power body is not callable"
@@ -45,24 +58,27 @@ def compile_power_schemas(body: object) -> tuple[JsonSchema, JsonSchema]:
             _validate_context(parameter)
             continue
         _validate_parameter(name, parameter, hints)
-        properties[name] = schema_for_type(hints[name])
+        properties[name] = _schema_at(
+            hints[name],
+            AnnotationSite(body, "parameter", name, project_root),
+        )
     return_annotation = hints.get("return", inspect.Signature.empty)
     if return_annotation is inspect.Signature.empty:
         message = "Power return type annotation is required"
         raise TypeError(message)
-    return _object_schema(properties), _output_schema(return_annotation)
+    return _object_schema(properties), _output_schema(return_annotation, body, project_root)
 
 
-def schema_for_type(annotation: object) -> JsonSchema:
+def schema_for_type(annotation: object, *, _project_root: Path | None = None) -> JsonSchema:
     """Compile one supported Python annotation."""
     origin = get_origin(annotation)
     if origin is Annotated:
         base, *metadata = get_args(annotation)
-        schema = schema_for_type(base)
+        schema = schema_for_type(base, _project_root=_project_root)
         _apply_metadata(schema, metadata)
         return schema
     if origin in {Required, NotRequired}:
-        return schema_for_type(get_args(annotation)[0])
+        return schema_for_type(get_args(annotation)[0], _project_root=_project_root)
     primitive = _PRIMITIVES.get(annotation)
     if primitive is not None:
         return {"type": primitive}
@@ -73,11 +89,11 @@ def schema_for_type(annotation: object) -> JsonSchema:
         if len(arguments) != 1:
             message = "list annotations require one item type"
             raise TypeError(message)
-        return {"type": "array", "items": schema_for_type(arguments[0])}
+        return {"type": "array", "items": schema_for_type(arguments[0], _project_root=_project_root)}
     if is_typeddict(annotation):
-        return _typed_dict_schema(annotation)
+        return _typed_dict_schema(annotation, _project_root)
     message = "unsupported Power type annotation"
-    raise TypeError(message)
+    raise _SchemaFailure(message, annotation)
 
 
 def _validate_parameter(
@@ -103,25 +119,45 @@ def _validate_context(parameter: inspect.Parameter) -> None:
         raise TypeError(message)
 
 
-def _output_schema(annotation: object) -> JsonSchema:
-    schema = schema_for_type(annotation)
+def _output_schema(annotation: object, body: object, project_root: Path | None) -> JsonSchema:
+    site = AnnotationSite(body, "return", None, project_root)
+    schema = _schema_at(
+        annotation,
+        site,
+    )
     if schema.get("type") != "object":
         message = "Power return type must be a TypedDict"
-        raise TypeError(message)
+        raise site.diagnostic(message, annotation)
     return schema
 
 
-def _typed_dict_schema(annotation: object) -> JsonSchema:
+def _typed_dict_schema(annotation: object, project_root: Path | None) -> JsonSchema:
     hints = get_type_hints(annotation, include_extras=True)
     required = set(getattr(annotation, "__required_keys__", hints))
     optional = set(getattr(annotation, "__optional_keys__", ()))
     if required | optional != set(hints):
         message = "TypedDict keys are invalid"
         raise TypeError(message)
-    properties = {name: schema_for_type(value) for name, value in hints.items()}
+    properties = {
+        name: _schema_at(
+            value,
+            AnnotationSite(annotation, "field", name, project_root),
+        )
+        for name, value in hints.items()
+    }
     schema = _object_schema(properties)
     schema["required"] = [name for name in hints if name in required]
     return schema
+
+
+def _schema_at(
+    annotation: object,
+    site: AnnotationSite,
+) -> JsonSchema:
+    try:
+        return schema_for_type(annotation, _project_root=site.project_root)
+    except _SchemaFailure as error:
+        raise site.diagnostic(str(error), error.annotation) from error
 
 
 def _object_schema(properties: dict[str, object]) -> JsonSchema:

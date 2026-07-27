@@ -57,7 +57,7 @@ class AssistantProject:
         files = _power_files(resolved)
         _native.validate_source_tree(_source_entries_json(resolved, files))
         with _import_path(resolved):
-            powers = tuple(_load_power(path) for path in files)
+            powers = tuple(_load_power(path, resolved) for path in files)
         return cls(root=resolved, manifest_source=manifest_source, powers=powers)
 
     def contract(self) -> str:
@@ -129,7 +129,7 @@ def _source_entry_kind(mode: int, link_count: int) -> str:
     raise ValueError(message)
 
 
-def _load_power(path: Path) -> PowerDefinition:
+def _load_power(path: Path, project_root: Path) -> PowerDefinition:
     module_name = f"_shimpz_power_{path.stem}"
     module = _load_module(module_name, path)
     try:
@@ -138,7 +138,7 @@ def _load_power(path: Path) -> PowerDefinition:
         if body is None or metadata is None:
             message = f"{path.name} must declare @power async def run"
             raise ValueError(message)
-        input_schema, output_schema = compile_power_schemas(body)
+        input_schema, output_schema = compile_power_schemas(body, project_root=project_root)
         return PowerDefinition(
             id=path.stem.replace("_", "-"),
             accounts=metadata.accounts,
