@@ -19,14 +19,14 @@ extensions.
 From the umbrella repository root, validate the authority and every vector:
 
 ```console
-python contracts/source-package/v1/verify.py
+python protocol/source-package/v1/verify.py
 ```
 
 Copy the already-verified authority into an empty or previously synchronized
 out-of-tree consumer directory without regenerating fixtures:
 
 ```console
-python contracts/source-package/v1/verify.py --sync ../consumer/contracts/source-package/v1
+python protocol/source-package/v1/verify.py --sync /path/to/consumer/protocol/source-package/v1
 ```
 
 The sync refuses symlinks and unknown destination files. Consumers record the

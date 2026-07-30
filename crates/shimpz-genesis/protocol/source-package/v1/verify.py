@@ -117,15 +117,19 @@ def validate_contract(contract: dict[str, object]) -> None:
     }
     for key, expected in expected_path.items():
         require_equal(path.get(key), expected, f"contract.path.{key}")
-    require_equal(set(limits), {
-        "package_bytes",
-        "regular_files",
-        "single_file_bytes",
-        "path_bytes",
-        "path_components",
-        "ustar_name_bytes",
-        "ustar_prefix_bytes",
-    }, "contract.limits keys")
+    require_equal(
+        set(limits),
+        {
+            "package_bytes",
+            "regular_files",
+            "single_file_bytes",
+            "path_bytes",
+            "path_components",
+            "ustar_name_bytes",
+            "ustar_prefix_bytes",
+        },
+        "contract.limits keys",
+    )
     expected_archive = {
         "format": "POSIX_ustar",
         "compression": "none",
@@ -336,9 +340,9 @@ def padded_size(size: int) -> int:
 def canonical_records(entries: list[SourceEntry], contract: dict[str, object]) -> list[ArchiveEntry]:
     _, _, limits = contract_sections(contract)
     records = archive_entries(entries, limits)
-    package_size = (len(records) * BLOCK_BYTES) + sum(
-        padded_size(record.content.size) for record in records
-    ) + (2 * BLOCK_BYTES)
+    package_size = (
+        (len(records) * BLOCK_BYTES) + sum(padded_size(record.content.size) for record in records) + (2 * BLOCK_BYTES)
+    )
     maximum = require_integer(limits.get("package_bytes"), "contract.limits.package_bytes")
     if package_size > maximum:
         raise ContractViolationError("package_too_large")

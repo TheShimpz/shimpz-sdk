@@ -3,7 +3,7 @@
 use serde::Deserialize;
 use shimpz_genesis::{SourceEntry, SourceEntryKind, validate_source_tree};
 
-const VECTORS: &str = include_str!("../contracts/source-package/v1/vectors.json");
+const VECTORS: &str = include_str!("../protocol/source-package/v1/vectors.json");
 
 #[derive(Deserialize)]
 struct Vectors {

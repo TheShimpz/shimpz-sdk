@@ -11,7 +11,7 @@ readme = "README.md"
 documentation = "https://docs.rs/shimpz-genesis"
 keywords = ["assistant", "sdk", "shimpz"]
 categories = ["development-tools"]
-include = ["contracts/**", "src/**", "tests/**", "Cargo.toml", "README.md"]
+include = ["protocol/**", "src/**", "tests/**", "Cargo.toml", "README.md"]
 
 [dependencies]
 regex = "1"

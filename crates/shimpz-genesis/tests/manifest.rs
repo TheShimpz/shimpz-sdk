@@ -21,9 +21,9 @@ Manage DNS only after validating the requested zone.
 scopes = ["dns.read", "offline_access"]
 "#;
 
-// Byte-identical to TheShimpz/shimpz@0460624:contracts/assistant/v1/manifest-id-vectors.json.
-const ID_VECTORS: &str = include_str!("fixtures/manifest-id-vectors.json");
+const ID_VECTORS: &str = include_str!("../protocol/assistant/v1/manifest-id-vectors.json");
 const ID_VECTORS_SHA256: &str = "2d26636396d4fee56ce1dfa7a4adb4f1da64155e197eb3ba2f657768ac3d7b9d";
+const MANIFEST_VECTORS: &str = include_str!("../protocol/assistant/v1/manifest-vectors.json");
 
 #[derive(Deserialize)]
 struct IdVectors {
@@ -31,6 +31,19 @@ struct IdVectors {
     missing_is_invalid: bool,
     valid: Vec<String>,
     invalid: Vec<Option<String>>,
+}
+
+#[derive(Deserialize)]
+struct ManifestVectors {
+    version: u8,
+    cases: Vec<ManifestCase>,
+}
+
+#[derive(Deserialize)]
+struct ManifestCase {
+    name: String,
+    valid: bool,
+    manifest: String,
 }
 
 #[test]
@@ -62,6 +75,23 @@ fn matches_the_umbrella_assistant_id_vectors() {
         let replacement = id.map_or_else(String::new, |value| format!("id = \"{value}\""));
         let source = VALID.replace("id = \"shimpz-cloudflare\"", &replacement);
         assert!(AssistantManifest::parse(&source).is_err());
+    }
+}
+
+#[test]
+fn matches_every_published_manifest_vector() {
+    let vectors: ManifestVectors =
+        serde_json::from_str(MANIFEST_VECTORS).expect("valid manifest vectors");
+    assert_eq!(vectors.version, 1);
+    for case in vectors.cases {
+        let result = AssistantManifest::parse(&case.manifest);
+        assert_eq!(
+            result.is_ok(),
+            case.valid,
+            "{} unexpectedly {}",
+            case.name,
+            if case.valid { "failed" } else { "passed" },
+        );
     }
 }
 
