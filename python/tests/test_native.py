@@ -36,7 +36,7 @@ def test_builds_contract_through_genesis() -> None:
     powers = [
         {
             "id": "example",
-            "accounts": [],
+            "integrations": [],
             "input_schema": SCHEMA,
             "output_schema": SCHEMA,
         }

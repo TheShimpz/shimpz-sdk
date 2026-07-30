@@ -29,7 +29,7 @@ pub(crate) fn validate_manifest(manifest: &AssistantManifest) -> Result<(), Mani
     validate_creators(&manifest.creators)?;
     validate_github(&manifest.github)?;
     validate_hosts(&manifest.allowed_hosts)?;
-    validate_accounts(manifest)?;
+    validate_integrations(manifest)?;
     Ok(())
 }
 
@@ -137,21 +137,24 @@ fn valid_host(host: &str) -> bool {
     labels_valid && tld_starts_with_letter && !suffix_reserved
 }
 
-fn validate_accounts(manifest: &AssistantManifest) -> Result<(), ManifestError> {
-    require(manifest.accounts.len() <= 16, "accounts are invalid")?;
-    for (account_id, account) in &manifest.accounts {
-        require(valid_id(account_id), "accounts are invalid")?;
+fn validate_integrations(manifest: &AssistantManifest) -> Result<(), ManifestError> {
+    require(
+        manifest.integrations.len() <= 16,
+        "integrations are invalid",
+    )?;
+    for (integration_id, integration) in &manifest.integrations {
+        require(valid_id(integration_id), "integrations are invalid")?;
         require(
-            (1..=32).contains(&account.scopes.len()),
-            "account scopes are invalid",
+            (1..=32).contains(&integration.scopes.len()),
+            "integration scopes are invalid",
         )?;
         let mut unique = HashSet::new();
         require(
-            account
+            integration
                 .scopes
                 .iter()
                 .all(|scope| valid_scope(scope) && unique.insert(scope)),
-            "account scopes are invalid",
+            "integration scopes are invalid",
         )?;
     }
     Ok(())

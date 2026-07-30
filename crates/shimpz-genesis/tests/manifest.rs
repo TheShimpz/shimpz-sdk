@@ -17,7 +17,7 @@ genesis = """
 Manage DNS only after validating the requested zone.
 """
 
-[accounts.cloudflare]
+[integrations.cloudflare]
 scopes = ["dns.read", "offline_access"]
 "#;
 
@@ -53,7 +53,7 @@ fn parses_a_complete_manifest() {
     assert_eq!(manifest.spec(), SPEC_VERSION);
     assert_eq!(manifest.id(), "shimpz-cloudflare");
     assert_eq!(manifest.version().to_string(), "0.1.0");
-    assert_eq!(manifest.accounts()["cloudflare"].scopes().len(), 2);
+    assert_eq!(manifest.integrations()["cloudflare"].scopes().len(), 2);
 }
 
 #[test]
@@ -164,13 +164,13 @@ fn accepts_multibyte_name_at_the_codepoint_boundary() {
 }
 
 #[test]
-fn rejects_invalid_account_intent() {
+fn rejects_invalid_integration_intent() {
     for replacement in [
-        "[accounts.Cloudflare]",
-        "[accounts.cloudflare-]",
-        "[accounts.cloudflare]\nextra = true",
+        "[integrations.Cloudflare]",
+        "[integrations.cloudflare-]",
+        "[integrations.cloudflare]\nextra = true",
     ] {
-        let source = VALID.replace("[accounts.cloudflare]", replacement);
+        let source = VALID.replace("[integrations.cloudflare]", replacement);
         assert!(AssistantManifest::parse(&source).is_err());
     }
 }

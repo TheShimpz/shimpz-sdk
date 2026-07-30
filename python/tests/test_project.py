@@ -17,7 +17,7 @@ github = "https://github.com/TheShimpz/shimpz-cloudflare"
 allowed_hosts = ["api.cloudflare.com"]
 genesis = "Manage Cloudflare safely."
 
-[accounts.cloudflare]
+[integrations.cloudflare]
 scopes = ["dns:write"]
 """
 
@@ -31,7 +31,7 @@ class Result(TypedDict):
     created: bool
 
 
-@power(accounts=["cloudflare"])
+@power(integrations=["cloudflare"])
 async def run(zone: str) -> Result:
     return {"created": True}
 """
@@ -51,14 +51,14 @@ def test_discovers_one_power_per_python_file(tmp_path: Path) -> None:
     project = AssistantProject.load(create_project(tmp_path / "assistant"))
 
     assert project.powers[0].id == "create-dns"
-    assert project.powers[0].accounts == ("cloudflare",)
+    assert project.powers[0].integrations == ("cloudflare",)
 
     contract = json.loads(project.contract())
 
     assert contract["version"] == 1
     assert set(contract["powers"][0]) == {
         "id",
-        "accounts",
+        "integrations",
         "input_schema",
         "output_schema",
     }
@@ -125,7 +125,7 @@ def test_rejects_non_snake_case_power_files(tmp_path: Path) -> None:
 
 
 def test_requires_a_decorated_run(tmp_path: Path) -> None:
-    source = POWER.replace('@power(accounts=["cloudflare"])\n', "")
+    source = POWER.replace('@power(integrations=["cloudflare"])\n', "")
     root = create_project(tmp_path / "assistant", power_source=source)
 
     with pytest.raises(ValueError, match="@power async def run"):
@@ -140,8 +140,7 @@ def test_reports_the_source_of_an_unsupported_parameter_annotation(tmp_path: Pat
         AssistantProject.load(root)
 
     assert str(failure.value) == (
-        "powers/create_dns.py:12: unsupported Power type annotation: "
-        "parameter 'zone' uses dict[str, str]"
+        "powers/create_dns.py:12: unsupported Power type annotation: parameter 'zone' uses dict[str, str]"
     )
 
 
@@ -153,6 +152,5 @@ def test_reports_the_source_of_an_unsupported_typed_dict_field(tmp_path: Path) -
         AssistantProject.load(root)
 
     assert str(failure.value) == (
-        "powers/create_dns.py:8: unsupported Power type annotation: "
-        "field 'created' uses dict[str, str]"
+        "powers/create_dns.py:8: unsupported Power type annotation: field 'created' uses dict[str, str]"
     )

@@ -18,7 +18,7 @@ github = "https://github.com/TheShimpz/shimpz-cloudflare"
 allowed_hosts = ["api.cloudflare.com"]
 genesis = "Manage Cloudflare safely."
 
-[accounts.cloudflare]
+[integrations.cloudflare]
 scopes = ["dns:write"]
 """
 
@@ -32,9 +32,9 @@ class Result(TypedDict):
     token_length: int
 
 
-@power(accounts=["cloudflare"])
+@power(integrations=["cloudflare"])
 async def run(zone: str, *, ctx: Context) -> Result:
-    return {"token_length": len(ctx.accounts.cloudflare.access_token)}
+    return {"token_length": len(ctx.integrations.cloudflare.access_token)}
 """
 
 
@@ -48,7 +48,7 @@ def project_at(root: Path, source: str = POWER) -> AssistantProject:
     return AssistantProject.load(root)
 
 
-def test_invokes_with_validated_inputs_and_redacted_accounts(tmp_path: Path) -> None:
+def test_invokes_with_validated_inputs_and_redacted_integrations(tmp_path: Path) -> None:
     project = project_at(tmp_path / "assistant")
 
     result = asyncio.run(
@@ -64,10 +64,10 @@ def test_invokes_with_validated_inputs_and_redacted_accounts(tmp_path: Path) -> 
     assert "private-token" not in repr(project.powers)
 
 
-def test_rejects_missing_accounts(tmp_path: Path) -> None:
+def test_rejects_missing_integrations(tmp_path: Path) -> None:
     project = project_at(tmp_path / "assistant")
 
-    with pytest.raises(ValueError, match="accounts"):
+    with pytest.raises(ValueError, match="integrations"):
         asyncio.run(invoke_power(project, "inspect-dns", {"zone": "example.com"}))
 
 
@@ -87,8 +87,8 @@ def test_validates_input_before_execution(tmp_path: Path) -> None:
 
 def test_redacts_power_exceptions(tmp_path: Path) -> None:
     source = POWER.replace(
-        'return {"token_length": len(ctx.accounts.cloudflare.access_token)}',
-        "raise RuntimeError(ctx.accounts.cloudflare.access_token)",
+        'return {"token_length": len(ctx.integrations.cloudflare.access_token)}',
+        "raise RuntimeError(ctx.integrations.cloudflare.access_token)",
     )
     project = project_at(tmp_path / "assistant", source)
 

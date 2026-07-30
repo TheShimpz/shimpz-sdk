@@ -1,6 +1,6 @@
 [package]
 name = "shimpz-python"
-version = "0.1.4"
+version = "0.2.0"
 description = "Private PyO3 binding for the Shimpz Python SDK"
 edition.workspace = true
 license.workspace = true

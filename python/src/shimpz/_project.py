@@ -25,7 +25,7 @@ class PowerDefinition:
     """One validated Power discovered from its source file."""
 
     id: str
-    accounts: tuple[str, ...]
+    integrations: tuple[str, ...]
     input_schema: JsonSchema
     output_schema: JsonSchema
     body: PowerBody
@@ -34,7 +34,7 @@ class PowerDefinition:
         """Return the language-neutral Genesis input."""
         return {
             "id": self.id,
-            "accounts": list(self.accounts),
+            "integrations": list(self.integrations),
             "input_schema": self.input_schema,
             "output_schema": self.output_schema,
         }
@@ -141,7 +141,7 @@ def _load_power(path: Path, project_root: Path) -> PowerDefinition:
         input_schema, output_schema = compile_power_schemas(body, project_root=project_root)
         return PowerDefinition(
             id=path.stem.replace("_", "-"),
-            accounts=metadata.accounts,
+            integrations=metadata.integrations,
             input_schema=input_schema,
             output_schema=output_schema,
             body=body,

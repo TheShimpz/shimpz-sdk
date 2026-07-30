@@ -18,20 +18,20 @@ _MAX_VALUE_BYTES = 512 * 1_024
 
 
 class PowerExecutionError(RuntimeError):
-    """A Power failed without exposing its input or account secrets."""
+    """A Power failed without exposing its input or integration secrets."""
 
 
 async def invoke_power(
     project: AssistantProject,
     power_id: str,
     inputs: Mapping[str, object],
-    account_tokens: Mapping[str, str] | None = None,
+    integration_tokens: Mapping[str, str] | None = None,
 ) -> object:
     """Validate and invoke one discovered Power."""
     definition = _find_power(project, power_id)
-    tokens = dict(account_tokens or {})
-    if set(tokens) != set(definition.accounts):
-        message = "Power accounts do not match its declaration"
+    tokens = dict(integration_tokens or {})
+    if set(tokens) != set(definition.integrations):
+        message = "Power integrations do not match its declaration"
         raise ValueError(message)
     input_value = dict(inputs)
     _validate_value(definition.input_schema, input_value, "Power input")

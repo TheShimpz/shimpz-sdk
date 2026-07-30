@@ -55,7 +55,7 @@ def test_builds_a_contract_for_the_rust_cli(tmp_path: Path) -> None:
 
 def test_invokes_a_power_from_a_stdin_request(tmp_path: Path) -> None:
     root = create_project(tmp_path / "assistant")
-    request = io.StringIO('{"input":{"name":"Ada"},"accounts":{}}')
+    request = io.StringIO('{"input":{"name":"Ada"},"integrations":{}}')
 
     result = json.loads(dispatch(["invoke", str(root), "greet"], request))
 
@@ -64,7 +64,7 @@ def test_invokes_a_power_from_a_stdin_request(tmp_path: Path) -> None:
 
 def test_rejects_duplicate_json_keys(tmp_path: Path) -> None:
     root = create_project(tmp_path / "assistant")
-    request = io.StringIO('{"input":{"name":"Ada","name":"Lin"},"accounts":{}}')
+    request = io.StringIO('{"input":{"name":"Ada","name":"Lin"},"integrations":{}}')
 
     with pytest.raises(ValueError, match="request is invalid"):
         dispatch(["invoke", str(root), "greet"], request)

@@ -90,7 +90,7 @@ def _invoke(root: Path) -> _Result:
     stdin_path = root.parent / "stdin.txt"
     stdout_path = root.parent / "stdout.txt"
     stderr_path = root.parent / "stderr.txt"
-    stdin_path.write_text('{"input":{"name":"Ada"},"accounts":{}}', encoding="utf-8")
+    stdin_path.write_text('{"input":{"name":"Ada"},"integrations":{}}', encoding="utf-8")
     process = multiprocessing.get_context("spawn").Process(
         target=_run_bridge,
         args=(root, stdin_path, stdout_path, stderr_path),

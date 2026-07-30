@@ -6,15 +6,15 @@ use serde::Deserialize;
 use crate::ManifestError;
 use crate::validation::validate_manifest;
 
-/// One controller-owned Account capability requested by an Assistant.
+/// One controller-owned Integration capability requested by an Assistant.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
-pub struct AccountIntent {
+pub struct IntegrationIntent {
     /// Provider-defined OAuth scopes requested for each invocation.
     pub(crate) scopes: Vec<String>,
 }
 
-impl AccountIntent {
+impl IntegrationIntent {
     /// Return the provider-defined OAuth scopes.
     #[must_use]
     pub fn scopes(&self) -> &[String] {
@@ -39,7 +39,7 @@ impl AccountIntent {
 ///     github: "https://github.com/a/b".to_string(),
 ///     allowed_hosts: Vec::new(),
 ///     genesis: "g".to_string(),
-///     accounts: BTreeMap::new(),
+///     integrations: BTreeMap::new(),
 /// };
 /// ```
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
@@ -63,9 +63,9 @@ pub struct AssistantManifest {
     pub(crate) allowed_hosts: Vec<String>,
     /// Markdown instructions that establish the Assistant's purpose.
     pub(crate) genesis: String,
-    /// Account intents keyed by provider id.
+    /// Integration intents keyed by provider id.
     #[serde(default)]
-    pub(crate) accounts: BTreeMap<String, AccountIntent>,
+    pub(crate) integrations: BTreeMap<String, IntegrationIntent>,
 }
 
 impl AssistantManifest {
@@ -100,9 +100,9 @@ impl AssistantManifest {
         &self.version
     }
 
-    /// Return Account intents keyed by provider id.
+    /// Return Integration intents keyed by provider id.
     #[must_use]
-    pub const fn accounts(&self) -> &BTreeMap<String, AccountIntent> {
-        &self.accounts
+    pub const fn integrations(&self) -> &BTreeMap<String, IntegrationIntent> {
+        &self.integrations
     }
 }

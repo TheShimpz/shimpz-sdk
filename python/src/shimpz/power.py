@@ -18,12 +18,12 @@ PowerBody = Callable[Params, Awaitable[Result]]
 class PowerMetadata:
     """Immutable author intent attached to a Power body."""
 
-    accounts: tuple[str, ...]
+    integrations: tuple[str, ...]
 
 
-def power(*, accounts: Iterable[str] = ()) -> Callable[[PowerBody], PowerBody]:
+def power(*, integrations: Iterable[str] = ()) -> Callable[[PowerBody], PowerBody]:
     """Declare an async ``run`` function as the Power in its Python file."""
-    account_ids = _validate_accounts(accounts)
+    integration_ids = _validate_integrations(integrations)
 
     def decorate(body: PowerBody) -> PowerBody:
         if body.__name__ != "run":
@@ -35,7 +35,7 @@ def power(*, accounts: Iterable[str] = ()) -> Callable[[PowerBody], PowerBody]:
         if hasattr(body, _METADATA_ATTRIBUTE):
             message = "a Power function can only be declared once"
             raise ValueError(message)
-        setattr(body, _METADATA_ATTRIBUTE, PowerMetadata(accounts=account_ids))
+        setattr(body, _METADATA_ATTRIBUTE, PowerMetadata(integrations=integration_ids))
         return body
 
     return decorate
@@ -47,18 +47,18 @@ def get_power_metadata(body: object) -> PowerMetadata | None:
     return metadata if isinstance(metadata, PowerMetadata) else None
 
 
-def _validate_accounts(accounts: Iterable[str]) -> tuple[str, ...]:
-    if isinstance(accounts, str):
-        message = "accounts must be an iterable of account ids"
+def _validate_integrations(integrations: Iterable[str]) -> tuple[str, ...]:
+    if isinstance(integrations, str):
+        message = "integrations must be an iterable of integration ids"
         raise TypeError(message)
-    account_ids = tuple(accounts)
-    if len(account_ids) != len(set(account_ids)):
-        message = "Power accounts must be unique"
+    integration_ids = tuple(integrations)
+    if len(integration_ids) != len(set(integration_ids)):
+        message = "Power integrations must be unique"
         raise ValueError(message)
-    if not all(_valid_id(account_id) for account_id in account_ids):
-        message = "Power account id is invalid"
+    if not all(_valid_id(integration_id) for integration_id in integration_ids):
+        message = "Power integration id is invalid"
         raise ValueError(message)
-    return account_ids
+    return integration_ids
 
 
 def _valid_id(value: object) -> bool:

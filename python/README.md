@@ -17,12 +17,12 @@ class CreatedDns(TypedDict):
     id: str
 
 
-@power(accounts=["cloudflare"])
+@power(integrations=["cloudflare"])
 async def run(zone: str, *, ctx: Context) -> CreatedDns:
-    token = ctx.accounts.cloudflare.access_token
+    token = ctx.integrations.cloudflare.access_token
     ...
 ```
 
-Attribute access (`ctx.accounts.cloudflare`) is a convenience for identifier-safe ids; for ids containing hyphens use subscript access, e.g. `ctx.accounts['cloudflare-api'].access_token`.
+Attribute access (`ctx.integrations.cloudflare`) is a convenience for identifier-safe ids; for ids containing hyphens use subscript access, e.g. `ctx.integrations['cloudflare-api'].access_token`.
 
 The native `_native` module is private and may not be imported by Assistants.

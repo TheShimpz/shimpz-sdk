@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from types import MappingProxyType
 
 
-class OAuthAccount:
+class OAuthIntegration:
     """One invocation-scoped OAuth bearer token."""
 
     __slots__ = ("__access_token",)
@@ -23,40 +23,40 @@ class OAuthAccount:
         return self.__access_token
 
     def __repr__(self) -> str:
-        return "OAuthAccount(access_token=<redacted>)"
+        return "OAuthIntegration(access_token=<redacted>)"
 
 
-class Accounts:
-    """Read-only OAuth accounts addressable by manifest id; use subscript access for hyphenated ids."""
+class Integrations:
+    """Read-only OAuth integrations addressable by manifest id; use subscript access for hyphenated ids."""
 
     __slots__ = ("__values",)
 
     def __init__(self, tokens: Mapping[str, str]) -> None:
-        values = {account_id: OAuthAccount(token) for account_id, token in tokens.items()}
+        values = {integration_id: OAuthIntegration(token) for integration_id, token in tokens.items()}
         self.__values = MappingProxyType(values)
 
-    def __getattr__(self, account_id: str) -> OAuthAccount:
+    def __getattr__(self, integration_id: str) -> OAuthIntegration:
         try:
-            return self.__values[account_id]
+            return self.__values[integration_id]
         except KeyError as error:
-            message = f"account {account_id!r} was not injected"
+            message = f"integration {integration_id!r} was not injected"
             raise AttributeError(message) from error
 
-    def __getitem__(self, account_id: str) -> OAuthAccount:
+    def __getitem__(self, integration_id: str) -> OAuthIntegration:
         try:
-            return self.__values[account_id]
+            return self.__values[integration_id]
         except KeyError as error:
-            message = f"account {account_id!r} was not injected"
+            message = f"integration {integration_id!r} was not injected"
             raise KeyError(message) from error
 
     def __repr__(self) -> str:
-        return f"Accounts(ids={tuple(self.__values)})"
+        return f"Integrations(ids={tuple(self.__values)})"
 
 
 class Context:
     """Trusted capabilities injected for one Power invocation."""
 
-    __slots__ = ("accounts",)
+    __slots__ = ("integrations",)
 
-    def __init__(self, account_tokens: Mapping[str, str]) -> None:
-        self.accounts = Accounts(account_tokens)
+    def __init__(self, integration_tokens: Mapping[str, str]) -> None:
+        self.integrations = Integrations(integration_tokens)

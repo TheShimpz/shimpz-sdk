@@ -10,7 +10,7 @@ mod value;
 
 pub use contract::{AssistantContract, PowerContract};
 pub use error::{ContractError, ManifestError, SourceTreeError, ValueError};
-pub use manifest::{AccountIntent, AssistantManifest};
+pub use manifest::{AssistantManifest, IntegrationIntent};
 pub use source_tree::{SourceEntry, SourceEntryKind, validate_source_tree};
 pub use value::validate_value;
 

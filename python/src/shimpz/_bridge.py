@@ -44,7 +44,7 @@ def dispatch(arguments: list[str], source: TextIO) -> str:
                 project,
                 arguments[2],
                 payload["input"],
-                payload["accounts"],
+                payload["integrations"],
             )
         )
         return _json(result)
@@ -64,10 +64,10 @@ def _request(source: TextIO) -> dict[str, dict[str, Any]]:
         raise ValueError(message) from error
     valid = (
         isinstance(payload, dict)
-        and set(payload) == {"input", "accounts"}
+        and set(payload) == {"input", "integrations"}
         and isinstance(payload["input"], dict)
-        and isinstance(payload["accounts"], dict)
-        and all(isinstance(key, str) and isinstance(value, str) for key, value in payload["accounts"].items())
+        and isinstance(payload["integrations"], dict)
+        and all(isinstance(key, str) and isinstance(value, str) for key, value in payload["integrations"].items())
     )
     if not valid:
         message = "private bridge request is invalid"

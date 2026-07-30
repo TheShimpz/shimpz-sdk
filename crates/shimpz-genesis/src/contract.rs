@@ -15,7 +15,7 @@ const MAX_SCHEMA_BYTES: usize = 128 * 1024;
 #[derive(Clone, Debug, Serialize, PartialEq)]
 pub struct PowerContract {
     id: String,
-    accounts: Vec<String>,
+    integrations: Vec<String>,
     input_schema: Value,
     output_schema: Value,
 }
@@ -25,19 +25,19 @@ impl PowerContract {
     ///
     /// # Errors
     ///
-    /// Returns an error for an invalid id, duplicated Account, or schema that
+    /// Returns an error for an invalid id, duplicated Integration, or schema that
     /// is not a closed JSON object at its root.
     pub fn new(
         id: impl Into<String>,
-        accounts: Vec<String>,
+        integrations: Vec<String>,
         input_schema: Value,
         output_schema: Value,
     ) -> Result<Self, ContractError> {
         let id = id.into();
-        validate_power(&id, &accounts, &input_schema, &output_schema)?;
+        validate_power(&id, &integrations, &input_schema, &output_schema)?;
         Ok(Self {
             id,
-            accounts,
+            integrations,
             input_schema,
             output_schema,
         })
@@ -49,10 +49,10 @@ impl PowerContract {
         &self.id
     }
 
-    /// Return the Account ids required for an invocation.
+    /// Return the Integration ids required for an invocation.
     #[must_use]
-    pub fn accounts(&self) -> &[String] {
-        &self.accounts
+    pub fn integrations(&self) -> &[String] {
+        &self.integrations
     }
 }
 
@@ -68,8 +68,8 @@ impl AssistantContract {
     ///
     /// # Errors
     ///
-    /// Returns an error for duplicate Powers, undeclared Accounts, unused
-    /// manifest Accounts, or a catalog larger than 512 KiB.
+    /// Returns an error for duplicate Powers, undeclared Integrations, unused
+    /// manifest Integrations, or a catalog larger than 512 KiB.
     pub fn build(
         manifest: &AssistantManifest,
         mut powers: Vec<PowerContract>,
@@ -126,22 +126,22 @@ impl AssistantContract {
 
 fn validate_power(
     id: &str,
-    accounts: &[String],
+    integrations: &[String],
     input_schema: &Value,
     output_schema: &Value,
 ) -> Result<(), ContractError> {
     if !valid_id(id) {
         return Err(ContractError::new("Power id is invalid"));
     }
-    if accounts.len() > 4 {
-        return Err(ContractError::new("Power declares too many Accounts"));
+    if integrations.len() > 4 {
+        return Err(ContractError::new("Power declares too many Integrations"));
     }
     let mut unique = HashSet::new();
-    if accounts
+    if integrations
         .iter()
-        .any(|account| !valid_id(account) || !unique.insert(account))
+        .any(|integration| !valid_id(integration) || !unique.insert(integration))
     {
-        return Err(ContractError::new("Power accounts are invalid"));
+        return Err(ContractError::new("Power integrations are invalid"));
     }
     validate_root_schema(input_schema)?;
     validate_root_schema(output_schema)?;
@@ -164,27 +164,29 @@ fn validate_catalog(
     powers: &[PowerContract],
 ) -> Result<(), ContractError> {
     let mut ids = HashSet::new();
-    let mut used_accounts = BTreeSet::new();
+    let mut used_integrations = BTreeSet::new();
     for power in powers {
         if !ids.insert(power.id()) {
             return Err(ContractError::new("Power ids must be unique"));
         }
-        for account in power.accounts() {
-            if !manifest.accounts.contains_key(account) {
-                return Err(ContractError::new("Power references an undeclared Account"));
+        for integration in power.integrations() {
+            if !manifest.integrations.contains_key(integration) {
+                return Err(ContractError::new(
+                    "Power references an undeclared Integration",
+                ));
             }
-            used_accounts.insert(account.as_str());
+            used_integrations.insert(integration.as_str());
         }
     }
     if manifest
-        .accounts
+        .integrations
         .keys()
         .map(String::as_str)
         .collect::<BTreeSet<_>>()
-        != used_accounts
+        != used_integrations
     {
         return Err(ContractError::new(
-            "every declared Account must be used by a Power",
+            "every declared Integration must be used by a Power",
         ));
     }
     Ok(())

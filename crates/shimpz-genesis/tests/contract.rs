@@ -14,7 +14,7 @@ github = "https://github.com/TheShimpz/dns"
 allowed_hosts = ["api.cloudflare.com"]
 genesis = "Manage DNS safely."
 
-[accounts.cloudflare]
+[integrations.cloudflare]
 scopes = ["dns.read"]
 "#;
 
@@ -39,8 +39,8 @@ fn schema() -> Value {
     })
 }
 
-fn power(id: &str, accounts: Vec<String>) -> PowerContract {
-    PowerContract::new(id, accounts, schema(), schema()).expect("valid Power")
+fn power(id: &str, integrations: Vec<String>) -> PowerContract {
+    PowerContract::new(id, integrations, schema(), schema()).expect("valid Power")
 }
 
 #[test]
@@ -60,12 +60,12 @@ fn sorts_and_serializes_powers_deterministically() {
         String::from_utf8(contract.canonical_bytes().expect("serialize")).expect("UTF-8"),
         concat!(
             "{\"version\":1,\"powers\":[",
-            "{\"id\":\"create-dns\",\"accounts\":[],",
+            "{\"id\":\"create-dns\",\"integrations\":[],",
             "\"input_schema\":{\"additionalProperties\":false,\"properties\":{},",
             "\"required\":[],\"type\":\"object\"},",
             "\"output_schema\":{\"additionalProperties\":false,\"properties\":{},",
             "\"required\":[],\"type\":\"object\"}},",
-            "{\"id\":\"list-zones\",\"accounts\":[\"cloudflare\"],",
+            "{\"id\":\"list-zones\",\"integrations\":[\"cloudflare\"],",
             "\"input_schema\":{\"additionalProperties\":false,\"properties\":{},",
             "\"required\":[],\"type\":\"object\"},",
             "\"output_schema\":{\"additionalProperties\":false,\"properties\":{},",
@@ -91,21 +91,21 @@ fn rejects_duplicate_power_ids() {
 }
 
 #[test]
-fn rejects_undeclared_or_unused_accounts() {
+fn rejects_undeclared_or_unused_integrations() {
     let manifest = AssistantManifest::parse(MANIFEST).expect("valid manifest");
     let undeclared =
         AssistantContract::build(&manifest, vec![power("list-zones", vec!["other".into()])])
-            .expect_err("undeclared Account");
+            .expect_err("undeclared Integration");
     assert_eq!(
         undeclared.message(),
-        "Power references an undeclared Account"
+        "Power references an undeclared Integration"
     );
 
     let unused = AssistantContract::build(&manifest, vec![power("list-zones", Vec::new())])
-        .expect_err("unused Account");
+        .expect_err("unused Integration");
     assert_eq!(
         unused.message(),
-        "every declared Account must be used by a Power"
+        "every declared Integration must be used by a Power"
     );
 }
 
@@ -169,15 +169,15 @@ fn accepts_closed_nested_objects_and_arrays() {
 }
 
 #[test]
-fn rejects_more_than_four_accounts_per_power() {
+fn rejects_more_than_four_integrations_per_power() {
     let error = PowerContract::new(
         "list-zones",
         vec!["a".into(), "b".into(), "c".into(), "d".into(), "e".into()],
         schema(),
         schema(),
     )
-    .expect_err("too many accounts");
-    assert_eq!(error.message(), "Power declares too many Accounts");
+    .expect_err("too many integrations");
+    assert_eq!(error.message(), "Power declares too many Integrations");
 }
 
 #[test]
