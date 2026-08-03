@@ -45,7 +45,10 @@ fn validate_assistant_id(value: &str) -> Result<(), ManifestError> {
             .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
         && !value.ends_with('-')
         && !value.contains("--")
-        && !matches!(value, "postgres" | "assistant-egress");
+        && !matches!(
+            value,
+            "postgres" | "assistant-egress" | "shimpz-assistant-egress"
+        );
     require(valid, "Assistant id is invalid")
 }
 

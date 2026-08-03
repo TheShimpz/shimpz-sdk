@@ -25,7 +25,7 @@ scopes = ["dns.read", "offline_access"]
 "#;
 
 const ID_VECTORS: &str = include_str!("../protocol/assistant/v1/manifest-id-vectors.json");
-const ID_VECTORS_SHA256: &str = "b13ec112117779f1c3b910877439738ed04226c3e1b11850dd02a7a533d2070e";
+const ID_VECTORS_SHA256: &str = "35ac6d8b22faf1f000a0bb00c4446703282bc178b950e199a76b238524de68fa";
 const MANIFEST_VECTORS: &str = include_str!("../protocol/assistant/v1/manifest-vectors.json");
 
 #[derive(Deserialize)]
