@@ -5,6 +5,7 @@ use sha2::{Digest, Sha256};
 use shimpz_genesis::{AssistantManifest, SPEC_VERSION};
 
 const VALID: &str = r#"
+[shimpz]
 spec = 1
 id = "shimpz-cloudflare"
 version = "0.1.0"
@@ -12,17 +13,19 @@ name = "Shimpz Cloudflare"
 summary = "Manage Cloudflare DNS records."
 creators = ["@roxygens"]
 github = "https://github.com/TheShimpz/shimpz-cloudflare"
-allowed_hosts = ["api.cloudflare.com"]
 genesis = """
 Manage DNS only after validating the requested zone.
 """
+
+[network]
+allowed_hosts = ["api.cloudflare.com"]
 
 [integrations.cloudflare]
 scopes = ["dns.read", "offline_access"]
 "#;
 
 const ID_VECTORS: &str = include_str!("../protocol/assistant/v1/manifest-id-vectors.json");
-const ID_VECTORS_SHA256: &str = "2d26636396d4fee56ce1dfa7a4adb4f1da64155e197eb3ba2f657768ac3d7b9d";
+const ID_VECTORS_SHA256: &str = "b13ec112117779f1c3b910877439738ed04226c3e1b11850dd02a7a533d2070e";
 const MANIFEST_VECTORS: &str = include_str!("../protocol/assistant/v1/manifest-vectors.json");
 
 #[derive(Deserialize)]

@@ -8,6 +8,7 @@ import pytest
 from shimpz._bridge import dispatch
 
 MANIFEST = """
+[shimpz]
 spec = 1
 id = "example"
 version = "0.1.0"
@@ -15,8 +16,10 @@ name = "Example"
 summary = "Test an example."
 creators = ["@roxygens"]
 github = "https://github.com/TheShimpz/example"
-allowed_hosts = []
 genesis = "Test examples safely."
+
+[network]
+allowed_hosts = []
 """
 
 POWER = """

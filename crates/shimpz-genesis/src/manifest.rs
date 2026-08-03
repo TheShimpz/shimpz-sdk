@@ -30,21 +30,24 @@ impl IntegrationIntent {
 /// use shimpz_genesis::AssistantManifest;
 /// use std::collections::BTreeMap;
 /// let _sealed = AssistantManifest {
-///     spec: 1,
-///     id: "example".to_string(),
-///     version: "0.1.0".parse().unwrap(),
-///     name: "n".to_string(),
-///     summary: "s".to_string(),
-///     creators: vec!["@x".to_string()],
-///     github: "https://github.com/a/b".to_string(),
-///     allowed_hosts: Vec::new(),
-///     genesis: "g".to_string(),
+///     shimpz: unreachable!(),
+///     network: unreachable!(),
 ///     integrations: BTreeMap::new(),
 /// };
 /// ```
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct AssistantManifest {
+    pub(crate) shimpz: ShimpzManifest,
+    pub(crate) network: NetworkManifest,
+    /// Integration intents keyed by provider id.
+    #[serde(default)]
+    pub(crate) integrations: BTreeMap<String, IntegrationIntent>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct ShimpzManifest {
     /// Assistant Spec version. Only version 1 is valid.
     pub(crate) spec: u8,
     /// Stable public Assistant identity.
@@ -55,17 +58,19 @@ pub struct AssistantManifest {
     pub(crate) name: String,
     /// One-line Store summary.
     pub(crate) summary: String,
-    /// GitHub creator handles.
+    /// Account-owned Creator handles.
     pub(crate) creators: Vec<String>,
     /// Canonical public source repository.
     pub(crate) github: String,
-    /// Exact public DNS hosts available through egress.
-    pub(crate) allowed_hosts: Vec<String>,
     /// Markdown instructions that establish the Assistant's purpose.
     pub(crate) genesis: String,
-    /// Integration intents keyed by provider id.
-    #[serde(default)]
-    pub(crate) integrations: BTreeMap<String, IntegrationIntent>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct NetworkManifest {
+    /// Exact public DNS hosts available through egress.
+    pub(crate) allowed_hosts: Vec<String>,
 }
 
 impl AssistantManifest {
@@ -85,19 +90,19 @@ impl AssistantManifest {
     /// Return the validated Assistant Spec version.
     #[must_use]
     pub const fn spec(&self) -> u8 {
-        self.spec
+        self.shimpz.spec
     }
 
     /// Return the stable public Assistant identity.
     #[must_use]
     pub fn id(&self) -> &str {
-        &self.id
+        &self.shimpz.id
     }
 
     /// Return the independently released Assistant version.
     #[must_use]
     pub const fn version(&self) -> &Version {
-        &self.version
+        &self.shimpz.version
     }
 
     /// Return Integration intents keyed by provider id.

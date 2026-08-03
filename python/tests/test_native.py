@@ -6,6 +6,7 @@ import pytest
 from shimpz import _native
 
 MANIFEST = """
+[shimpz]
 spec = 1
 id = "example"
 version = "0.1.0"
@@ -13,8 +14,10 @@ name = "Example"
 summary = "Example Assistant."
 creators = ["@roxygens"]
 github = "https://github.com/TheShimpz/example"
-allowed_hosts = []
 genesis = "Handle examples safely."
+
+[network]
+allowed_hosts = []
 """
 
 SCHEMA = {

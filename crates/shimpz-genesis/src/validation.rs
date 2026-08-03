@@ -17,18 +17,21 @@ const RESERVED_SUFFIXES: [&str; 11] = [
 ];
 
 pub(crate) fn validate_manifest(manifest: &AssistantManifest) -> Result<(), ManifestError> {
-    require(manifest.spec == SPEC_VERSION, "unsupported Assistant spec")?;
-    validate_assistant_id(&manifest.id)?;
     require(
-        manifest.version.pre.is_empty() && manifest.version.build.is_empty(),
+        manifest.shimpz.spec == SPEC_VERSION,
+        "unsupported Assistant spec",
+    )?;
+    validate_assistant_id(&manifest.shimpz.id)?;
+    require(
+        manifest.shimpz.version.pre.is_empty() && manifest.shimpz.version.build.is_empty(),
         "version must be a stable SemVer",
     )?;
-    validate_line(&manifest.name, 80, "name")?;
-    validate_line(&manifest.summary, 160, "summary")?;
-    validate_genesis(&manifest.genesis)?;
-    validate_creators(&manifest.creators)?;
-    validate_github(&manifest.github)?;
-    validate_hosts(&manifest.allowed_hosts)?;
+    validate_line(&manifest.shimpz.name, 80, "name")?;
+    validate_line(&manifest.shimpz.summary, 160, "summary")?;
+    validate_genesis(&manifest.shimpz.genesis)?;
+    validate_creators(&manifest.shimpz.creators)?;
+    validate_github(&manifest.shimpz.github)?;
+    validate_hosts(&manifest.network.allowed_hosts)?;
     validate_integrations(manifest)?;
     Ok(())
 }
@@ -42,7 +45,7 @@ fn validate_assistant_id(value: &str) -> Result<(), ManifestError> {
             .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
         && !value.ends_with('-')
         && !value.contains("--")
-        && !matches!(value, "postgres" | "app-egress-proxy");
+        && !matches!(value, "postgres" | "assistant-egress");
     require(valid, "Assistant id is invalid")
 }
 
@@ -80,12 +83,12 @@ fn valid_creator(value: &str) -> bool {
     let Some(handle) = value.strip_prefix('@') else {
         return false;
     };
-    (1..=39).contains(&handle.len())
-        && !handle.starts_with('-')
-        && !handle.ends_with('-')
-        && handle
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+    (3..=32).contains(&handle.len())
+        && handle.bytes().enumerate().all(|(index, byte)| {
+            byte.is_ascii_lowercase()
+                || byte.is_ascii_digit()
+                || byte == b'-' && index > 0 && index + 1 < handle.len()
+        })
 }
 
 fn validate_github(value: &str) -> Result<(), ManifestError> {

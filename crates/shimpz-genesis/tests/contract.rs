@@ -4,6 +4,7 @@ use serde_json::{Value, json};
 use shimpz_genesis::{AssistantContract, AssistantManifest, PowerContract};
 
 const MANIFEST: &str = r#"
+[shimpz]
 spec = 1
 id = "dns"
 version = "0.1.0"
@@ -11,14 +12,17 @@ name = "DNS"
 summary = "Manage DNS records."
 creators = ["@roxygens"]
 github = "https://github.com/TheShimpz/dns"
-allowed_hosts = ["api.cloudflare.com"]
 genesis = "Manage DNS safely."
+
+[network]
+allowed_hosts = ["api.cloudflare.com"]
 
 [integrations.cloudflare]
 scopes = ["dns.read"]
 "#;
 
 const NO_ACCOUNTS: &str = r#"
+[shimpz]
 spec = 1
 id = "dns"
 version = "0.1.0"
@@ -26,8 +30,10 @@ name = "DNS"
 summary = "Manage DNS records."
 creators = ["@roxygens"]
 github = "https://github.com/TheShimpz/dns"
-allowed_hosts = ["api.cloudflare.com"]
 genesis = "Manage DNS safely."
+
+[network]
+allowed_hosts = ["api.cloudflare.com"]
 "#;
 
 fn schema() -> Value {

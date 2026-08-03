@@ -7,6 +7,7 @@ import pytest
 from shimpz._project import AssistantProject
 
 MANIFEST = """
+[shimpz]
 spec = 1
 id = "shimpz-cloudflare"
 version = "0.1.0"
@@ -14,8 +15,10 @@ name = "Cloudflare"
 summary = "Manage DNS records."
 creators = ["@roxygens"]
 github = "https://github.com/TheShimpz/shimpz-cloudflare"
-allowed_hosts = ["api.cloudflare.com"]
 genesis = "Manage Cloudflare safely."
+
+[network]
+allowed_hosts = ["api.cloudflare.com"]
 
 [integrations.cloudflare]
 scopes = ["dns:write"]
