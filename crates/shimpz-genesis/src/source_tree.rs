@@ -4,6 +4,7 @@ use crate::SourceTreeError;
 
 const MAX_FILES: usize = 10_000;
 const MAX_FILE_BYTES: u64 = 8 * 1024 * 1024;
+const MAX_ICON_BYTES: u64 = 1024 * 1024;
 const MAX_PACKAGE_BYTES: u64 = 32 * 1024 * 1024;
 const TAR_BLOCK_BYTES: u64 = 512;
 
@@ -77,6 +78,7 @@ pub fn validate_source_tree(entries: &[SourceEntry]) -> Result<(), SourceTreeErr
     let mut directories = BTreeSet::new();
     let mut has_manifest = false;
     let mut has_pyproject = false;
+    let mut has_icon = false;
     let mut has_power = false;
 
     if entries.len() > MAX_FILES {
@@ -95,9 +97,10 @@ pub fn validate_source_tree(entries: &[SourceEntry]) -> Result<(), SourceTreeErr
         collect_directories(&components, &mut directories);
         has_manifest |= entry.path() == "shimpz.toml";
         has_pyproject |= entry.path() == "pyproject.toml";
+        has_icon |= entry.path() == "icon.png";
         has_power |= components.first() == Some(&"powers");
     }
-    if !has_manifest || !has_pyproject {
+    if !has_manifest || !has_pyproject || !has_icon {
         return reject("missing_required_file");
     }
     if !has_power {
@@ -156,7 +159,7 @@ fn validate_membership(components: &[&str]) -> Result<(), SourceTreeError> {
     match components {
         ["powers", filename] if valid_power_filename(filename) => Ok(()),
         ["powers", ..] => reject("nested_power"),
-        ["shimpz.toml" | "pyproject.toml"] | ["lib" | "tests", _, ..] => Ok(()),
+        ["icon.png" | "shimpz.toml" | "pyproject.toml"] | ["lib" | "tests", _, ..] => Ok(()),
         _ => reject("unknown_root"),
     }
 }
@@ -164,6 +167,9 @@ fn validate_membership(components: &[&str]) -> Result<(), SourceTreeError> {
 fn validate_kind_and_size(entry: &SourceEntry) -> Result<(), SourceTreeError> {
     if entry.kind() != SourceEntryKind::RegularFile {
         return reject("special_file");
+    }
+    if entry.path() == "icon.png" && entry.size() > MAX_ICON_BYTES {
+        return reject("icon_too_large");
     }
     if entry.size() > MAX_FILE_BYTES {
         return reject("single_file_too_large");

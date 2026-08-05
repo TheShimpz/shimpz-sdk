@@ -4,6 +4,7 @@ import asyncio
 from pathlib import Path
 
 import pytest
+from _fixtures import write_icon
 from shimpz._project import AssistantProject
 from shimpz._runtime import PowerExecutionError, invoke_power
 
@@ -43,6 +44,7 @@ async def run(zone: str, *, ctx: Context) -> Result:
 
 def project_at(root: Path, source: str = POWER) -> AssistantProject:
     root.mkdir()
+    write_icon(root)
     (root / "shimpz.toml").write_text(MANIFEST, encoding="utf-8")
     (root / "pyproject.toml").write_text("[project]\nname = 'assistant'\n", encoding="utf-8")
     powers = root / "powers"

@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import pytest
+from _fixtures import write_icon
 from shimpz._project import AssistantProject
 
 MANIFEST = """
@@ -42,6 +43,7 @@ async def run(zone: str) -> Result:
 
 def create_project(root: Path, *, power_name: str = "create_dns.py", power_source: str = POWER) -> Path:
     root.mkdir()
+    write_icon(root)
     (root / "shimpz.toml").write_text(MANIFEST, encoding="utf-8")
     (root / "pyproject.toml").write_text("[project]\nname = 'assistant'\n", encoding="utf-8")
     powers = root / "powers"
@@ -97,6 +99,22 @@ def test_requires_pyproject_for_a_publishable_source_tree(tmp_path: Path) -> Non
     (root / "pyproject.toml").unlink(missing_ok=True)
 
     with pytest.raises(ValueError, match="missing_required_file"):
+        AssistantProject.load(root)
+
+
+def test_requires_a_canonical_icon_for_a_publishable_source_tree(tmp_path: Path) -> None:
+    root = create_project(tmp_path / "assistant")
+    (root / "icon.png").unlink()
+
+    with pytest.raises(ValueError, match="missing_required_file"):
+        AssistantProject.load(root)
+
+
+def test_rejects_a_malformed_canonical_icon(tmp_path: Path) -> None:
+    root = create_project(tmp_path / "assistant")
+    (root / "icon.png").write_bytes(b"not a PNG")
+
+    with pytest.raises(ValueError, match="invalid_icon"):
         AssistantProject.load(root)
 
 

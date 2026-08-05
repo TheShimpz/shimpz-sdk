@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
+from _fixtures import write_icon
 
 MANIFEST = """
 [shimpz]
@@ -59,6 +60,7 @@ async def run(name: str) -> Result:
 
 def _project(root: Path, source: str) -> Path:
     root.mkdir()
+    write_icon(root)
     (root / "shimpz.toml").write_text(MANIFEST, encoding="utf-8")
     (root / "pyproject.toml").write_text("[project]\nname = 'assistant'\n", encoding="utf-8")
     powers = root / "powers"

@@ -9,19 +9,19 @@ use sha2::{Digest, Sha256};
 const FILES: [(&str, &str); 4] = [
     (
         "README.md",
-        "5d25f97b6de8a3f243108ffadb466fb595b28dd671a8e61a29fd219034303704",
+        "03f39efbcd2b047cc9b68f764dbaf080704dc033ee7dea18639c6dd00cfdca9b",
     ),
     (
         "contract.json",
-        "a22ecc75e1710e77478bdae066dab1dda656c52140ba815962ee4b8dc4a3ad44",
+        "27cc783eedef5488b357b16e4e05af24ec46498f86450c44af1d760cae26f0bb",
     ),
     (
         "vectors.json",
-        "23136ed5c5b852fe52c88d462dcb1beed925e1862eeb6ec13875fc6de84c1e0b",
+        "24f42e4f479ec04272790b4f1ddb21ea8821585feba6c5f337ae0bf02aa8442d",
     ),
     (
         "verify.py",
-        "29fca4ecbf998b9b1ddc86e6ec0c7ae5b27ab297f6403c3fb71c3f947781b77a",
+        "1f31a4ac2715531584493cc2d3dd3314db6318d9a4046214060a990f4cc81fb9",
     ),
 ];
 
@@ -61,14 +61,14 @@ fn vendored_source_package_contract_matches_the_pinned_developers_tree() {
     let checksums = fs::read(mirror.join("contract-files.sha256")).expect("checksum manifest");
     assert_eq!(
         format!("{:x}", Sha256::digest(&checksums)),
-        "2f188eb7fe715d3a9750350d9271e69821153d1e00e1dcdcd0a0df02a8d20917"
+        "5ee3ad0c7d53f56304528861585b702c87e0c83a2bd11c6c9b4feb3ab2ffb3cf"
     );
     let upstream: Value =
         serde_json::from_slice(&fs::read(root.join("upstream.json")).expect("upstream identity"))
             .expect("valid upstream identity");
     assert_eq!(
         upstream["commit"],
-        "15608b2b1ff1237af636568011c1ff1bc73cf5bc"
+        "38966a38c41712ecf68383541bc007a801a514cc"
     );
-    assert_eq!(upstream["tree"], "b6fa41e3d12486945100ac7de9a1382a227c9dcc");
+    assert_eq!(upstream["tree"], "6f1937d5c1785f0c79892f1efa873761acb45d1a");
 }

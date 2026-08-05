@@ -1,7 +1,8 @@
 //! Source-tree validation against the pinned umbrella vectors.
 
+use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde::Deserialize;
-use shimpz_genesis::{SourceEntry, SourceEntryKind, validate_source_tree};
+use shimpz_genesis::{SourceEntry, SourceEntryKind, validate_source_icon, validate_source_tree};
 
 const VECTORS: &str = include_str!("../protocol/source-package/v1/vectors.json");
 
@@ -28,6 +29,7 @@ struct Entry {
     kind: String,
     text: Option<String>,
     repeat: Option<Repeat>,
+    base64: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -53,7 +55,20 @@ fn matches_every_pinned_source_tree_vector() {
 
     for case in vectors.cases {
         let entries = expand_entries(&case);
-        let result = validate_source_tree(&entries);
+        let result = if matches!(
+            case.error.as_deref(),
+            Some("invalid_icon" | "animated_icon")
+        ) {
+            let icon = case
+                .entries
+                .iter()
+                .find(|entry| entry.path == "icon.png")
+                .and_then(|entry| entry.base64.as_deref())
+                .expect("icon rejection vector bytes");
+            validate_source_icon(&STANDARD.decode(icon).expect("valid vector base64"))
+        } else {
+            validate_source_tree(&entries)
+        };
         if case.valid {
             result.unwrap_or_else(|error| panic!("{}: {error}", case.name));
         } else {
@@ -100,7 +115,12 @@ fn source_entry(entry: &Entry) -> SourceEntry {
         other => panic!("unknown vector entry kind: {other}"),
     };
     let size = entry.repeat.as_ref().map_or_else(
-        || entry.text.as_deref().unwrap_or_default().len() as u64,
+        || {
+            entry.base64.as_ref().map_or_else(
+                || entry.text.as_deref().unwrap_or_default().len() as u64,
+                |encoded| STANDARD.decode(encoded).expect("valid vector base64").len() as u64,
+            )
+        },
         |repeat| repeat.count,
     );
     SourceEntry::new(&entry.path, kind, size)

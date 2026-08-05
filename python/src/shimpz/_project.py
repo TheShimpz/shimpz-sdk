@@ -56,6 +56,7 @@ class AssistantProject:
         _native.validate_manifest(manifest_source)
         files = _power_files(resolved)
         _native.validate_source_tree(_source_entries_json(resolved, files))
+        _native.validate_source_icon((resolved / "icon.png").read_bytes())
         with _import_path(resolved):
             powers = tuple(_load_power(path, resolved) for path in files)
         return cls(root=resolved, manifest_source=manifest_source, powers=powers)
@@ -92,7 +93,7 @@ def _power_files(root: Path) -> tuple[Path, ...]:
 
 
 def _source_entries_json(root: Path, powers: tuple[Path, ...]) -> str:
-    paths = [root / "shimpz.toml", root / "pyproject.toml", *powers]
+    paths = [root / "icon.png", root / "shimpz.toml", root / "pyproject.toml", *powers]
     for directory_name in ("lib", "tests"):
         directory = root / directory_name
         if directory.is_symlink() or (directory.exists() and not directory.is_dir()):

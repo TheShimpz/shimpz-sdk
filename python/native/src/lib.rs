@@ -6,7 +6,7 @@ use serde::Deserialize;
 use serde_json::Value;
 use shimpz_genesis::{
     AssistantContract, AssistantManifest, PowerContract, SourceEntry, SourceEntryKind,
-    validate_source_tree as validate_tree, validate_value,
+    validate_source_icon as validate_icon, validate_source_tree as validate_tree, validate_value,
 };
 
 #[derive(Deserialize)]
@@ -43,6 +43,11 @@ fn validate_source_tree(entries_json: &str) -> PyResult<()> {
         })
         .collect::<PyResult<Vec<_>>>()?;
     validate_tree(&entries).map_err(value_error)
+}
+
+#[pyfunction]
+fn validate_source_icon(contents: &[u8]) -> PyResult<()> {
+    validate_icon(contents).map_err(value_error)
 }
 
 #[pyfunction]
@@ -99,5 +104,6 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(validate_json, module)?)?;
     module.add_function(wrap_pyfunction!(validate_manifest, module)?)?;
     module.add_function(wrap_pyfunction!(validate_source_tree, module)?)?;
+    module.add_function(wrap_pyfunction!(validate_source_icon, module)?)?;
     Ok(())
 }
