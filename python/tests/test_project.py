@@ -64,9 +64,11 @@ def test_discovers_one_power_per_python_file(tmp_path: Path) -> None:
     assert set(contract["powers"][0]) == {
         "id",
         "integrations",
+        "human_requests",
         "input_schema",
         "output_schema",
     }
+    assert contract["powers"][0]["human_requests"] == []
 
 
 def test_loads_optional_project_lib_modules(tmp_path: Path) -> None:

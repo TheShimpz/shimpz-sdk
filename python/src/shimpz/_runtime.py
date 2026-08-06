@@ -11,6 +11,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from . import _native
+from ._human import HumanRequestSuspension
 from ._project import AssistantProject, PowerDefinition
 from .context import Context
 
@@ -26,6 +27,7 @@ async def invoke_power(
     power_id: str,
     inputs: Mapping[str, object],
     integration_tokens: Mapping[str, str] | None = None,
+    responses: tuple[Mapping[str, object], ...] = (),
 ) -> object:
     """Validate and invoke one discovered Power."""
     definition = _find_power(project, power_id)
@@ -35,7 +37,7 @@ async def invoke_power(
         raise ValueError(message)
     input_value = dict(inputs)
     _validate_value(definition.input_schema, input_value, "Power input")
-    context = Context(tokens)
+    context = Context(tokens, definition.human_requests, responses)
     arguments = dict(input_value)
     if "ctx" in inspect.signature(definition.body).parameters:
         arguments["ctx"] = context
@@ -45,8 +47,11 @@ async def invoke_power(
         except (SystemExit, KeyboardInterrupt) as error:
             result = error
     if isinstance(result, BaseException):
+        if isinstance(result, HumanRequestSuspension):
+            raise result
         message = "Power execution failed"
         raise PowerExecutionError(message) from None
+    context._finish(result)
     _validate_value(definition.output_schema, result, "Power result")
     return result
 

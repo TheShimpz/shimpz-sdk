@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "capabilities": [
+    "approval",
+    "input:text",
+    "input:textarea",
+    "input:password",
+    "input:phone",
+    "input:select",
+    "input:choice",
+    "input:choices",
+    "auth:reauth",
+    "auth:second-factor",
+    "auth:phishing-resistant"
+  ],
+  "limits": {
+    "requests_per_power": 8,
+    "requests_per_turn": 16,
+    "challenge_seconds": 300,
+    "options": 32,
+    "title_characters": 80,
+    "description_characters": 500
+  }
+}

@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 from typing import Any, TextIO
 
+from ._human import HumanRequestSuspension
 from ._json import strict_loads
 from ._project import AssistantProject
 from ._runtime import PowerExecutionError, invoke_power
@@ -39,20 +40,24 @@ def dispatch(arguments: list[str], source: TextIO) -> str:
     if len(arguments) == 3 and arguments[0] == "invoke":
         project = AssistantProject.load(Path(arguments[1]))
         payload = _request(source)
-        result = asyncio.run(
-            invoke_power(
-                project,
-                arguments[2],
-                payload["input"],
-                payload["integrations"],
+        try:
+            result = asyncio.run(
+                invoke_power(
+                    project,
+                    arguments[2],
+                    payload["input"],
+                    payload["integrations"],
+                    tuple(payload.get("responses", ())),
+                )
             )
-        )
-        return _json(result)
+        except HumanRequestSuspension as suspension:
+            return _json({"type": "request", "request": suspension.request})
+        return _json({"type": "result", "result": result})
     message = "private bridge command is invalid"
     raise ValueError(message)
 
 
-def _request(source: TextIO) -> dict[str, dict[str, Any]]:
+def _request(source: TextIO) -> dict[str, Any]:
     raw = source.read(_MAX_REQUEST_BYTES + 1)
     if not 0 < len(raw.encode()) <= _MAX_REQUEST_BYTES:
         message = "private bridge request is invalid"
@@ -64,10 +69,18 @@ def _request(source: TextIO) -> dict[str, dict[str, Any]]:
         raise ValueError(message) from error
     valid = (
         isinstance(payload, dict)
-        and set(payload) == {"input", "integrations"}
+        and set(payload) in ({"input", "integrations"}, {"input", "integrations", "responses"})
         and isinstance(payload["input"], dict)
         and isinstance(payload["integrations"], dict)
         and all(isinstance(key, str) and isinstance(value, str) for key, value in payload["integrations"].items())
+        and (
+            "responses" not in payload
+            or (
+                isinstance(payload["responses"], list)
+                and len(payload["responses"]) <= 8
+                and all(isinstance(item, dict) for item in payload["responses"])
+            )
+        )
     )
     if not valid:
         message = "private bridge request is invalid"

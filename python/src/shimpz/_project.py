@@ -26,6 +26,7 @@ class PowerDefinition:
 
     id: str
     integrations: tuple[str, ...]
+    human_requests: tuple[str, ...]
     input_schema: JsonSchema
     output_schema: JsonSchema
     body: PowerBody
@@ -35,6 +36,7 @@ class PowerDefinition:
         return {
             "id": self.id,
             "integrations": list(self.integrations),
+            "human_requests": list(self.human_requests),
             "input_schema": self.input_schema,
             "output_schema": self.output_schema,
         }
@@ -143,6 +145,7 @@ def _load_power(path: Path, project_root: Path) -> PowerDefinition:
         return PowerDefinition(
             id=path.stem.replace("_", "-"),
             integrations=metadata.integrations,
+            human_requests=metadata.human_requests,
             input_schema=input_schema,
             output_schema=output_schema,
             body=body,

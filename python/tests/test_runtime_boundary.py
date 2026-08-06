@@ -120,7 +120,10 @@ def test_printing_power_returns_only_validated_json(tmp_path: Path) -> None:
     result = _invoke(_project(tmp_path / "assistant", PRINTING_POWER))
 
     assert result.returncode == 0
-    assert json.loads(result.stdout) == {"greeting": "Hello, Ada"}
+    assert json.loads(result.stdout) == {
+        "type": "result",
+        "result": {"greeting": "Hello, Ada"},
+    }
     assert "CHATTER-ON-STDOUT" not in result.stdout
 
 

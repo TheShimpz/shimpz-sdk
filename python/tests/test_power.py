@@ -6,7 +6,7 @@ from shimpz.power import get_power_metadata
 
 
 def test_declares_an_async_run_without_a_registry() -> None:
-    @power(integrations=["cloudflare"])
+    @power(integrations=["cloudflare"], human_requests=["input:text", "approval"])
     async def run(zone: str) -> str:
         return zone
 
@@ -14,6 +14,7 @@ def test_declares_an_async_run_without_a_registry() -> None:
 
     assert metadata is not None
     assert metadata.integrations == ("cloudflare",)
+    assert metadata.human_requests == ("approval", "input:text")
 
 
 def test_rejects_a_synchronous_power() -> None:
@@ -41,3 +42,17 @@ def test_rejects_invalid_integrations(integrations: list[str]) -> None:
 def test_rejects_a_string_as_the_integration_collection() -> None:
     with pytest.raises(TypeError, match="iterable"):
         power(integrations="cloudflare")
+
+
+@pytest.mark.parametrize(
+    "human_requests",
+    [["input:unknown"], ["approval", "approval"], ["Approval"]],
+)
+def test_rejects_invalid_human_requests(human_requests: list[str]) -> None:
+    with pytest.raises(ValueError, match="human request"):
+        power(human_requests=human_requests)
+
+
+def test_rejects_a_string_as_the_human_request_collection() -> None:
+    with pytest.raises(TypeError, match="iterable"):
+        power(human_requests="approval")

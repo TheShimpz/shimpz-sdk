@@ -19,11 +19,17 @@ class PowerMetadata:
     """Immutable author intent attached to a Power body."""
 
     integrations: tuple[str, ...]
+    human_requests: tuple[str, ...]
 
 
-def power(*, integrations: Iterable[str] = ()) -> Callable[[PowerBody], PowerBody]:
+def power(
+    *,
+    integrations: Iterable[str] = (),
+    human_requests: Iterable[str] = (),
+) -> Callable[[PowerBody], PowerBody]:
     """Declare an async ``run`` function as the Power in its Python file."""
     integration_ids = _validate_integrations(integrations)
+    request_capabilities = _validate_human_requests(human_requests)
 
     def decorate(body: PowerBody) -> PowerBody:
         if body.__name__ != "run":
@@ -35,7 +41,14 @@ def power(*, integrations: Iterable[str] = ()) -> Callable[[PowerBody], PowerBod
         if hasattr(body, _METADATA_ATTRIBUTE):
             message = "a Power function can only be declared once"
             raise ValueError(message)
-        setattr(body, _METADATA_ATTRIBUTE, PowerMetadata(integrations=integration_ids))
+        setattr(
+            body,
+            _METADATA_ATTRIBUTE,
+            PowerMetadata(
+                integrations=integration_ids,
+                human_requests=request_capabilities,
+            ),
+        )
         return body
 
     return decorate
@@ -59,6 +72,30 @@ def _validate_integrations(integrations: Iterable[str]) -> tuple[str, ...]:
         message = "Power integration id is invalid"
         raise ValueError(message)
     return integration_ids
+
+
+def _validate_human_requests(human_requests: Iterable[str]) -> tuple[str, ...]:
+    if isinstance(human_requests, str):
+        message = "human_requests must be an iterable of capability ids"
+        raise TypeError(message)
+    capabilities = tuple(human_requests)
+    supported = {
+        "approval",
+        "input:text",
+        "input:textarea",
+        "input:password",
+        "input:phone",
+        "input:select",
+        "input:choice",
+        "input:choices",
+        "auth:reauth",
+        "auth:second-factor",
+        "auth:phishing-resistant",
+    }
+    if len(capabilities) != len(set(capabilities)) or any(item not in supported for item in capabilities):
+        message = "Power human request capability is invalid"
+        raise ValueError(message)
+    return tuple(sorted(capabilities))
 
 
 def _valid_id(value: object) -> bool:

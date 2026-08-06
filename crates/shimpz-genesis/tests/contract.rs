@@ -46,7 +46,7 @@ fn schema() -> Value {
 }
 
 fn power(id: &str, integrations: Vec<String>) -> PowerContract {
-    PowerContract::new(id, integrations, schema(), schema()).expect("valid Power")
+    PowerContract::new(id, integrations, Vec::new(), schema(), schema()).expect("valid Power")
 }
 
 #[test]
@@ -67,11 +67,13 @@ fn sorts_and_serializes_powers_deterministically() {
         concat!(
             "{\"version\":1,\"powers\":[",
             "{\"id\":\"create-dns\",\"integrations\":[],",
+            "\"human_requests\":[],",
             "\"input_schema\":{\"additionalProperties\":false,\"properties\":{},",
             "\"required\":[],\"type\":\"object\"},",
             "\"output_schema\":{\"additionalProperties\":false,\"properties\":{},",
             "\"required\":[],\"type\":\"object\"}},",
             "{\"id\":\"list-zones\",\"integrations\":[\"cloudflare\"],",
+            "\"human_requests\":[],",
             "\"input_schema\":{\"additionalProperties\":false,\"properties\":{},",
             "\"required\":[],\"type\":\"object\"},",
             "\"output_schema\":{\"additionalProperties\":false,\"properties\":{},",
@@ -121,8 +123,8 @@ fn rejects_open_or_non_object_schemas() {
         json!({"type": "string"}),
         json!({"type": "object", "properties": {}, "required": []}),
     ] {
-        let error =
-            PowerContract::new("list-zones", Vec::new(), invalid, schema()).expect_err("schema");
+        let error = PowerContract::new("list-zones", Vec::new(), Vec::new(), invalid, schema())
+            .expect_err("schema");
         assert!(error.message().starts_with("Power schema"));
     }
 }
@@ -140,8 +142,8 @@ fn rejects_unsupported_nested_schema_keywords() {
         "required": ["zone"],
         "additionalProperties": false
     });
-    let error =
-        PowerContract::new("list-zones", Vec::new(), invalid, schema()).expect_err("keyword");
+    let error = PowerContract::new("list-zones", Vec::new(), Vec::new(), invalid, schema())
+        .expect_err("keyword");
 
     assert_eq!(error.message(), "Power schema keyword is unsupported");
 }
@@ -171,7 +173,8 @@ fn accepts_closed_nested_objects_and_arrays() {
         "additionalProperties": false
     });
 
-    PowerContract::new("list-zones", Vec::new(), schema(), nested).expect("supported schema");
+    PowerContract::new("list-zones", Vec::new(), Vec::new(), schema(), nested)
+        .expect("supported schema");
 }
 
 #[test]
@@ -179,6 +182,7 @@ fn rejects_more_than_four_integrations_per_power() {
     let error = PowerContract::new(
         "list-zones",
         vec!["a".into(), "b".into(), "c".into(), "d".into(), "e".into()],
+        Vec::new(),
         schema(),
         schema(),
     )
@@ -211,11 +215,34 @@ fn rejects_oversized_and_hyphen_powers() {
         "required": [],
         "properties": properties
     });
-    let size =
-        PowerContract::new("list-zones", Vec::new(), big, schema()).expect_err("oversized schema");
+    let size = PowerContract::new("list-zones", Vec::new(), Vec::new(), big, schema())
+        .expect_err("oversized schema");
     assert_eq!(size.message(), "Power schema is too large");
 
-    let id =
-        PowerContract::new("a--b", Vec::new(), schema(), schema()).expect_err("double hyphen id");
+    let id = PowerContract::new("a--b", Vec::new(), Vec::new(), schema(), schema())
+        .expect_err("double hyphen id");
     assert_eq!(id.message(), "Power id is invalid");
+}
+
+#[test]
+fn validates_and_sorts_human_request_capabilities() {
+    let power = PowerContract::new(
+        "confirm-dns",
+        Vec::new(),
+        vec!["input:text".into(), "approval".into()],
+        schema(),
+        schema(),
+    )
+    .expect("human requests");
+    assert_eq!(power.human_requests(), ["approval", "input:text"]);
+
+    let invalid = PowerContract::new(
+        "confirm-dns",
+        Vec::new(),
+        vec!["input:unknown".into()],
+        schema(),
+        schema(),
+    )
+    .expect_err("invalid human request");
+    assert_eq!(invalid.message(), "Power human requests are invalid");
 }

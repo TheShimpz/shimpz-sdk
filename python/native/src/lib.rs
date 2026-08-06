@@ -13,6 +13,7 @@ use shimpz_genesis::{
 struct PowerInput {
     id: String,
     integrations: Vec<String>,
+    human_requests: Vec<String>,
     input_schema: Value,
     output_schema: Value,
 }
@@ -61,6 +62,7 @@ fn build_contract(manifest_source: &str, powers_json: &str) -> PyResult<String> 
             PowerContract::new(
                 input.id,
                 input.integrations,
+                input.human_requests,
                 input.input_schema,
                 input.output_schema,
             )

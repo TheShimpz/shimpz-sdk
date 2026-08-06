@@ -10,12 +10,26 @@ use crate::{AssistantManifest, ContractError, SPEC_VERSION};
 
 const MAX_CONTRACT_BYTES: usize = 512 * 1024;
 const MAX_SCHEMA_BYTES: usize = 128 * 1024;
+const HUMAN_REQUEST_CAPABILITIES: [&str; 11] = [
+    "approval",
+    "input:text",
+    "input:textarea",
+    "input:password",
+    "input:phone",
+    "input:select",
+    "input:choice",
+    "input:choices",
+    "auth:reauth",
+    "auth:second-factor",
+    "auth:phishing-resistant",
+];
 
 /// One reviewed Power in the generated machine contract.
 #[derive(Clone, Debug, Serialize, PartialEq)]
 pub struct PowerContract {
     id: String,
     integrations: Vec<String>,
+    human_requests: Vec<String>,
     input_schema: Value,
     output_schema: Value,
 }
@@ -30,14 +44,23 @@ impl PowerContract {
     pub fn new(
         id: impl Into<String>,
         integrations: Vec<String>,
+        mut human_requests: Vec<String>,
         input_schema: Value,
         output_schema: Value,
     ) -> Result<Self, ContractError> {
         let id = id.into();
-        validate_power(&id, &integrations, &input_schema, &output_schema)?;
+        validate_power(
+            &id,
+            &integrations,
+            &human_requests,
+            &input_schema,
+            &output_schema,
+        )?;
+        human_requests.sort();
         Ok(Self {
             id,
             integrations,
+            human_requests,
             input_schema,
             output_schema,
         })
@@ -53,6 +76,12 @@ impl PowerContract {
     #[must_use]
     pub fn integrations(&self) -> &[String] {
         &self.integrations
+    }
+
+    /// Return the reviewed human-request capabilities.
+    #[must_use]
+    pub fn human_requests(&self) -> &[String] {
+        &self.human_requests
     }
 }
 
@@ -127,6 +156,7 @@ impl AssistantContract {
 fn validate_power(
     id: &str,
     integrations: &[String],
+    human_requests: &[String],
     input_schema: &Value,
     output_schema: &Value,
 ) -> Result<(), ContractError> {
@@ -142,6 +172,15 @@ fn validate_power(
         .any(|integration| !valid_id(integration) || !unique.insert(integration))
     {
         return Err(ContractError::new("Power integrations are invalid"));
+    }
+    if human_requests.len() > HUMAN_REQUEST_CAPABILITIES.len() {
+        return Err(ContractError::new("Power declares too many human requests"));
+    }
+    let mut unique_requests = HashSet::new();
+    if human_requests.iter().any(|request| {
+        !HUMAN_REQUEST_CAPABILITIES.contains(&request.as_str()) || !unique_requests.insert(request)
+    }) {
+        return Err(ContractError::new("Power human requests are invalid"));
     }
     validate_root_schema(input_schema)?;
     validate_root_schema(output_schema)?;
