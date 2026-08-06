@@ -49,11 +49,24 @@ ordinal, canonical fingerprint, and bounded inert copy. Team accepts it only for
 returns the journal operation to `prepared`, and later re-invokes the same operation with its admitted
 response transcript. A Power failure returns no partial result or private diagnostic.
 
+The fingerprint is lowercase SHA-256 over the request object before its `fingerprint` member is added. Its
+preimage is UTF-8 JSON with object keys sorted lexicographically, compact `,` and `:` separators, Unicode emitted
+directly rather than ASCII-escaped, and no non-finite numbers. Request keys are fixed ASCII protocol names, and
+request values are limited to strings, integers, booleans, null, arrays, and objects, so this profile is portable
+without a general numeric canonicalizer. `human-request-vectors.json` freezes representative preimages, digests,
+semantic request constraints, and replay transcript failures that JSON Schema cannot express alone.
+
 Human responses are never answer logs. Non-secret replay values may exist only in Team continuation state;
 `password` input is memory-only, protected from result echo, and must be the final request. A request after
 observing an Integration token is invalid. Denial, cancellation, expiry, unsupported assurance, transcript
 divergence, and undeclared capability all block the Power without returning control to Assistant code.
 There are no authored HTTP servers or compatibility envelopes.
+
+Public prompt copy must be trimmed, printable Unicode and must not contain control, bidi override/isolate, or
+zero-width formatting characters. Option values are unique. Length and selection minima never exceed their
+maxima, selection maxima never exceed the option count, and response ordinals are unique and contiguous from
+zero. The Assistant Spec owns the eight-request-per-Power limit; Team's chat protocol independently owns its
+turn-wide request limit and challenge lifetime.
 
 Validate the artifact set and vector shape from this directory:
 

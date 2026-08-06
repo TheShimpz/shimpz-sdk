@@ -8,6 +8,8 @@ import json
 import re
 from pathlib import Path
 
+from human_request_validator import verify_vectors as verify_human_vectors
+
 HERE = Path(__file__).resolve().parent
 MANIFEST = HERE / "contract-files.sha256"
 ROW = re.compile(r"([0-9a-f]{64})  ([A-Za-z0-9._-]+)")
@@ -69,28 +71,13 @@ if outcomes != {False, True}:
     fail("Assistant manifest vectors require positive and negative cases")
 
 human = json.loads((HERE / "human-request-vectors.json").read_bytes())
-capabilities = human.get("capabilities") if isinstance(human, dict) else None
-limits = human.get("limits") if isinstance(human, dict) else None
 machine = json.loads((HERE / "machine-contract.schema.json").read_bytes())
 declared_capabilities = machine["$defs"]["humanRequestCapability"].get("enum")
-if (
-    not isinstance(human, dict)
-    or human.get("version") != 1
-    or not isinstance(capabilities, list)
-    or len(capabilities) != 11
-    or len(set(capabilities)) != len(capabilities)
-    or not all(isinstance(item, str) and item for item in capabilities)
-    or capabilities != declared_capabilities
-    or limits
-    != {
-        "requests_per_power": 8,
-        "requests_per_turn": 16,
-        "challenge_seconds": 300,
-        "options": 32,
-        "title_characters": 80,
-        "description_characters": 500,
-    }
-):
+if not isinstance(declared_capabilities, list):
+    fail("Assistant human-request vectors are invalid")
+try:
+    verify_human_vectors(human, declared_capabilities)
+except KeyError, TypeError, ValueError:
     fail("Assistant human-request vectors are invalid")
 
 print("Assistant protocol artifacts and conformance vectors are valid")

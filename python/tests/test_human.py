@@ -1,10 +1,18 @@
 """Tests for deterministic Power human-request replay."""
 
 import asyncio
+import json
+from pathlib import Path
 
 import pytest
 from shimpz import Context, InputOption, InputRequest
-from shimpz._human import HumanRequestSuspension
+from shimpz._human import HumanRequestSuspension, _fingerprint
+
+VECTORS = json.loads(
+    (Path(__file__).parents[2] / "crates/shimpz-genesis/protocol/assistant/v1/human-request-vectors.json").read_text(
+        encoding="utf-8"
+    )
+)
 
 
 def suspend(context: Context, request) -> dict[str, object]:
@@ -163,3 +171,52 @@ def test_optional_choice_accepts_no_selection() -> None:
     context = Context({}, ["input:choice"], [response(frame, "")])
 
     assert asyncio.run(collect(context)) == ""
+
+
+@pytest.mark.parametrize("case", VECTORS["fingerprint"]["cases"], ids=lambda case: case["name"])
+def test_matches_published_fingerprint_vectors(case: dict[str, object]) -> None:
+    assert _fingerprint(case["request"]) == case["sha256"]
+
+
+@pytest.mark.parametrize("case", VECTORS["request_cases"], ids=lambda case: case["name"])
+def test_matches_published_request_vectors(case: dict[str, object]) -> None:
+    request = case["request"]
+    assert isinstance(request, dict)
+
+    async def issue(context: Context):
+        kind = request["kind"]
+        if kind == "approval":
+            return await context.request_approval(
+                title=request["title"],
+                description=request["description"],
+            )
+        if isinstance(kind, str) and kind.startswith("auth:"):
+            assurance = kind.removeprefix("auth:")
+            return await context.request_auth(
+                assurance,
+                title=request["title"],
+                description=request["description"],
+            )
+        options = tuple(InputOption(**option) for option in request.get("options", ()))
+        value = InputRequest(
+            kind=kind.removeprefix("input:"),
+            title=request["title"],
+            description=request["description"],
+            label=request["label"],
+            placeholder=request.get("placeholder"),
+            required=request["required"],
+            min_length=request.get("min_length", 0),
+            max_length=request.get("max_length"),
+            options=options,
+            min_selections=request.get("min_selections", 0),
+            max_selections=request.get("max_selections"),
+        )
+        return await context.request_input(value)
+
+    context = Context({}, [request["kind"]])
+    if case["valid"]:
+        with pytest.raises(HumanRequestSuspension):
+            asyncio.run(issue(context))
+    else:
+        with pytest.raises(ValueError):
+            asyncio.run(issue(context))
