@@ -50,7 +50,7 @@ class Result(TypedDict):
 
 @power(human_requests=["approval"])
 async def run(name: str, *, ctx: Context) -> Result:
-    await ctx.request_approval(
+    ctx.request_approval(
         title="Send greeting",
         description=f"Send a greeting to {name}.",
     )

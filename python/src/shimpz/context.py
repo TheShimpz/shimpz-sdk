@@ -73,19 +73,19 @@ class Context:
         self._human = HumanRequestRuntime(human_requests, responses)
         self.integrations = Integrations(integration_tokens, self._human.observe_token)
 
-    async def request_approval(self, *, title: str, description: str) -> None:
+    def request_approval(self, *, title: str, description: str) -> None:
         """Pause until the Team's authenticated human approves the described action."""
         descriptor = _copy(title, description)
         self._human.resolve("approval", descriptor)
 
-    async def request_auth(self, assurance: Assurance, *, title: str, description: str) -> None:
+    def request_auth(self, assurance: Assurance, *, title: str, description: str) -> None:
         """Pause for platform-side assurance without receiving authentication material."""
         if assurance not in {"reauth", "second-factor", "phishing-resistant"}:
             raise ValueError("Power assurance is invalid")
         descriptor = _copy(title, description)
         self._human.resolve(f"auth:{assurance}", descriptor)
 
-    async def request_input(self, request: InputRequest) -> str | list[str]:
+    def request_input(self, request: InputRequest) -> str | list[str]:
         """Pause for one closed, specialized input field."""
         if not isinstance(request, InputRequest):
             raise TypeError("Power input request is invalid")

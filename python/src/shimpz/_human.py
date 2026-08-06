@@ -65,7 +65,7 @@ class HumanRequestRuntime:
         """Reject an unused response or exact password echo in the Power result."""
         if self._index != len(self._responses):
             raise ValueError("Power human response transcript diverged")
-        if self._secret is not None and _contains(result, self._secret):
+        if self._secret and _contains(result, self._secret):
             raise ValueError("Power result exposes human password input")
 
 
@@ -143,7 +143,7 @@ def _validate_choices(descriptor: Mapping[str, object], value: object) -> None:
 
 def _contains(value: object, secret: str) -> bool:
     if isinstance(value, str):
-        return value == secret
+        return secret in value
     if isinstance(value, Mapping):
         return any(_contains(key, secret) or _contains(item, secret) for key, item in value.items())
     if isinstance(value, Sequence) and not isinstance(value, bytes):

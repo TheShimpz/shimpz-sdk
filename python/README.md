@@ -22,7 +22,7 @@ class CreatedDns(TypedDict):
     human_requests=["approval", "input:choice"],
 )
 async def run(zone: str, *, ctx: Context) -> CreatedDns:
-    mode = await ctx.request_input(
+    mode = ctx.request_input(
         InputRequest(
             kind="choice",
             title="Choose the DNS mode",
@@ -34,7 +34,7 @@ async def run(zone: str, *, ctx: Context) -> CreatedDns:
             ),
         )
     )
-    await ctx.request_approval(
+    ctx.request_approval(
         title="Create the DNS record",
         description=f"Create {zone} in {mode} mode.",
     )
