@@ -11,7 +11,7 @@ from typing import Any, TextIO
 from ._human import HumanRequestSuspension
 from ._json import strict_loads
 from ._project import AssistantProject
-from ._runtime import PowerExecutionError, invoke_power
+from ._runtime import ActionExecutionError, invoke_action
 
 _MAX_REQUEST_BYTES = 512 * 1_024
 
@@ -21,7 +21,7 @@ def main(arguments: list[str] | None = None) -> int:
     args = sys.argv[1:] if arguments is None else arguments
     try:
         output = dispatch(args, sys.stdin)
-    except (OSError, UnicodeError, TypeError, ValueError, PowerExecutionError) as error:
+    except (OSError, UnicodeError, TypeError, ValueError, ActionExecutionError) as error:
         sys.stderr.write(f"shimpz: {error}\n")
         return 1
     except SystemExit, KeyboardInterrupt:
@@ -42,7 +42,7 @@ def dispatch(arguments: list[str], source: TextIO) -> str:
         payload = _request(source)
         try:
             result = asyncio.run(
-                invoke_power(
+                invoke_action(
                     project,
                     arguments[2],
                     payload["input"],

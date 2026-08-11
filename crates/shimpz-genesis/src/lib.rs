@@ -9,7 +9,7 @@ mod source_tree;
 mod validation;
 mod value;
 
-pub use contract::{AssistantContract, PowerContract};
+pub use contract::{ActionContract, AssistantContract};
 pub use error::{ContractError, ManifestError, SourceTreeError, ValueError};
 pub use manifest::{AssistantManifest, IntegrationIntent};
 pub use source_icon::validate_source_icon;

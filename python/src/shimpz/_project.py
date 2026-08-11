@@ -14,22 +14,22 @@ from pathlib import Path
 from types import ModuleType
 
 from . import _native
-from ._schema import JsonSchema, compile_power_schemas
-from .power import PowerBody, get_power_metadata
+from ._schema import JsonSchema, compile_action_schemas
+from .action import ActionBody, get_action_metadata
 
-_POWER_FILENAME = re.compile(r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)*\.py$")
+_ACTION_FILENAME = re.compile(r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)*\.py$")
 
 
 @dataclass(frozen=True, slots=True)
-class PowerDefinition:
-    """One validated Power discovered from its source file."""
+class ActionDefinition:
+    """One validated Action discovered from its source file."""
 
     id: str
     integrations: tuple[str, ...]
     human_requests: tuple[str, ...]
     input_schema: JsonSchema
     output_schema: JsonSchema
-    body: PowerBody
+    body: ActionBody
 
     def contract_input(self) -> dict[str, object]:
         """Return the language-neutral Genesis input."""
@@ -44,11 +44,11 @@ class PowerDefinition:
 
 @dataclass(frozen=True, slots=True)
 class AssistantProject:
-    """A validated manifest and its directly contained Powers."""
+    """A validated manifest and its directly contained Actions."""
 
     root: Path
     manifest_source: str
-    powers: tuple[PowerDefinition, ...]
+    actions: tuple[ActionDefinition, ...]
 
     @classmethod
     def load(cls, root: Path) -> AssistantProject:
@@ -56,18 +56,18 @@ class AssistantProject:
         resolved = root.resolve()
         manifest_source = _read_manifest(resolved)
         _native.validate_manifest(manifest_source)
-        files = _power_files(resolved)
+        files = _action_files(resolved)
         _native.validate_source_tree(_source_entries_json(resolved, files))
         _native.validate_source_icon((resolved / "icon.png").read_bytes())
         with _import_path(resolved):
-            powers = tuple(_load_power(path, resolved) for path in files)
-        return cls(root=resolved, manifest_source=manifest_source, powers=powers)
+            actions = tuple(_load_action(path, resolved) for path in files)
+        return cls(root=resolved, manifest_source=manifest_source, actions=actions)
 
     def contract(self) -> str:
         """Build the canonical in-memory contract through Genesis."""
-        inputs = [power.contract_input() for power in self.powers]
-        powers_json = json.dumps(inputs, ensure_ascii=True, allow_nan=False, separators=(",", ":"))
-        return _native.build_contract(self.manifest_source, powers_json)
+        inputs = [action.contract_input() for action in self.actions]
+        actions_json = json.dumps(inputs, ensure_ascii=True, allow_nan=False, separators=(",", ":"))
+        return _native.build_contract(self.manifest_source, actions_json)
 
 
 def _read_manifest(root: Path) -> str:
@@ -78,24 +78,24 @@ def _read_manifest(root: Path) -> str:
     return manifest.read_text(encoding="utf-8")
 
 
-def _power_files(root: Path) -> tuple[Path, ...]:
-    directory = root / "powers"
+def _action_files(root: Path) -> tuple[Path, ...]:
+    directory = root / "actions"
     if not directory.is_dir():
-        message = "powers/ is required"
+        message = "actions/ is required"
         raise ValueError(message)
     entries = tuple(entry for entry in directory.iterdir() if entry.name != "__pycache__")
-    invalid = [entry.name for entry in entries if not entry.is_file() or _POWER_FILENAME.fullmatch(entry.name) is None]
+    invalid = [entry.name for entry in entries if not entry.is_file() or _ACTION_FILENAME.fullmatch(entry.name) is None]
     if invalid:
-        message = "powers/ contains an invalid entry"
+        message = "actions/ contains an invalid entry"
         raise ValueError(message)
     if not entries:
-        message = "powers/ must contain at least one Power"
+        message = "actions/ must contain at least one Action"
         raise ValueError(message)
     return tuple(sorted(entries))
 
 
-def _source_entries_json(root: Path, powers: tuple[Path, ...]) -> str:
-    paths = [root / "icon.png", root / "shimpz.toml", root / "pyproject.toml", *powers]
+def _source_entries_json(root: Path, actions: tuple[Path, ...]) -> str:
+    paths = [root / "icon.png", root / "shimpz.toml", root / "pyproject.toml", *actions]
     for directory_name in ("lib", "tests"):
         directory = root / directory_name
         if directory.is_symlink() or (directory.exists() and not directory.is_dir()):
@@ -132,17 +132,17 @@ def _source_entry_kind(mode: int, link_count: int) -> str:
     raise ValueError(message)
 
 
-def _load_power(path: Path, project_root: Path) -> PowerDefinition:
-    module_name = f"_shimpz_power_{path.stem}"
+def _load_action(path: Path, project_root: Path) -> ActionDefinition:
+    module_name = f"_shimpz_action_{path.stem}"
     module = _load_module(module_name, path)
     try:
         body = vars(module).get("run")
-        metadata = get_power_metadata(body)
+        metadata = get_action_metadata(body)
         if body is None or metadata is None:
-            message = f"{path.name} must declare @power async def run"
+            message = f"{path.name} must declare @action async def run"
             raise ValueError(message)
-        input_schema, output_schema = compile_power_schemas(body, project_root=project_root)
-        return PowerDefinition(
+        input_schema, output_schema = compile_action_schemas(body, project_root=project_root)
+        return ActionDefinition(
             id=path.stem.replace("_", "-"),
             integrations=metadata.integrations,
             human_requests=metadata.human_requests,

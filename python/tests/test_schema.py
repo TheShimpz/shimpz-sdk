@@ -1,9 +1,9 @@
-"""Tests for annotation-first Power schemas."""
+"""Tests for annotation-first Action schemas."""
 
 from typing import Annotated, Literal, NotRequired, TypedDict
 
 import pytest
-from shimpz._schema import compile_power_schemas, schema_for_type
+from shimpz._schema import compile_action_schemas, schema_for_type
 
 
 class DnsRecord(TypedDict):
@@ -20,7 +20,7 @@ def test_compiles_annotations_without_field_declarations() -> None:
     ) -> DnsRecord:
         raise NotImplementedError
 
-    input_schema, output_schema = compile_power_schemas(run)
+    input_schema, output_schema = compile_action_schemas(run)
 
     assert input_schema == {
         "type": "object",
@@ -40,7 +40,7 @@ def test_excludes_the_reserved_context_parameter() -> None:
     async def run(zone: str, *, ctx: object) -> DnsRecord:
         raise NotImplementedError
 
-    input_schema, _ = compile_power_schemas(run)
+    input_schema, _ = compile_action_schemas(run)
 
     assert input_schema["required"] == ["zone"]
 
@@ -64,7 +64,7 @@ def test_rejects_parameter_defaults() -> None:
         raise NotImplementedError
 
     with pytest.raises(TypeError, match="default"):
-        compile_power_schemas(run)
+        compile_action_schemas(run)
 
 
 def test_requires_a_typed_dict_output() -> None:
@@ -72,7 +72,7 @@ def test_requires_a_typed_dict_output() -> None:
         return zone
 
     with pytest.raises(TypeError, match="TypedDict"):
-        compile_power_schemas(run)
+        compile_action_schemas(run)
 
 
 def test_rejects_invalid_constraints() -> None:

@@ -1,4 +1,4 @@
-"""Tests for deterministic Power human-request replay."""
+"""Tests for deterministic Action human-request replay."""
 
 import json
 from pathlib import Path

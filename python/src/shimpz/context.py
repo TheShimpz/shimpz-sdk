@@ -1,4 +1,4 @@
-"""Invocation-scoped capabilities passed to a Power."""
+"""Invocation-scoped capabilities passed to a Action."""
 
 from __future__ import annotations
 
@@ -81,19 +81,19 @@ class Context:
     def request_auth(self, assurance: Assurance, *, title: str, description: str) -> None:
         """Pause for platform-side assurance without receiving authentication material."""
         if assurance not in {"reauth", "second-factor", "phishing-resistant"}:
-            raise ValueError("Power assurance is invalid")
+            raise ValueError("Action assurance is invalid")
         descriptor = _copy(title, description)
         self._human.resolve(f"auth:{assurance}", descriptor)
 
     def request_input(self, request: InputRequest) -> str | list[str]:
         """Pause for one closed, specialized input field."""
         if not isinstance(request, InputRequest):
-            raise TypeError("Power input request is invalid")
+            raise TypeError("Action input request is invalid")
         capability = f"input:{request.kind}"
         descriptor = _input_descriptor(request)
         value = self._human.resolve(capability, descriptor)
         if not isinstance(value, str | list):
-            raise ValueError("Power human input response is invalid")
+            raise ValueError("Action human input response is invalid")
         return value
 
     def _finish(self, result: object) -> None:
@@ -115,30 +115,30 @@ def _public_text(value: object, maximum: int, label: str) -> str:
 
 def _copy(title: object, description: object) -> dict[str, object]:
     return {
-        "title": _public_text(title, 80, "Power request title"),
-        "description": _public_text(description, 500, "Power request description"),
+        "title": _public_text(title, 80, "Action request title"),
+        "description": _public_text(description, 500, "Action request description"),
     }
 
 
 def _option_payload(options: Sequence[InputOption]) -> list[dict[str, object]]:
     if not 2 <= len(options) <= 32 or any(not isinstance(item, InputOption) for item in options):
-        raise ValueError("Power input options are invalid")
+        raise ValueError("Action input options are invalid")
     values: set[str] = set()
     payload: list[dict[str, object]] = []
     for option in options:
-        value = _public_text(option.value, 128, "Power input option value")
+        value = _public_text(option.value, 128, "Action input option value")
         if value in values:
-            raise ValueError("Power input options are invalid")
+            raise ValueError("Action input options are invalid")
         values.add(value)
         description = (
             None
             if option.description is None
-            else _public_text(option.description, 160, "Power input option description")
+            else _public_text(option.description, 160, "Action input option description")
         )
         payload.append(
             {
                 "value": value,
-                "label": _public_text(option.label, 80, "Power input option label"),
+                "label": _public_text(option.label, 80, "Action input option label"),
                 "description": description,
             }
         )
@@ -148,12 +148,12 @@ def _option_payload(options: Sequence[InputOption]) -> list[dict[str, object]]:
 def _input_descriptor(request: InputRequest) -> dict[str, object]:
     kind = request.kind
     if kind not in {"text", "textarea", "password", "phone", "select", "choice", "choices"}:
-        raise ValueError("Power input kind is invalid")
+        raise ValueError("Action input kind is invalid")
     if type(request.required) is not bool:
-        raise ValueError("Power input required flag is invalid")
+        raise ValueError("Action input required flag is invalid")
     base = {
         **_copy(request.title, request.description),
-        "label": _public_text(request.label, 80, "Power input label"),
+        "label": _public_text(request.label, 80, "Action input label"),
         "required": request.required,
     }
     if kind in {"select", "choice", "choices"}:
@@ -163,18 +163,18 @@ def _input_descriptor(request: InputRequest) -> dict[str, object]:
         minimum = max(1, request.min_selections) if request.required else request.min_selections
         maximum = len(choices) if request.max_selections is None else request.max_selections
         if not 0 <= minimum <= maximum <= len(choices):
-            raise ValueError("Power input selection bounds are invalid")
+            raise ValueError("Action input selection bounds are invalid")
         return {**base, "options": choices, "min_selections": minimum, "max_selections": maximum}
     if request.options:
-        raise ValueError("Power input options are invalid")
+        raise ValueError("Action input options are invalid")
     limits = {"text": 4096, "textarea": 16000, "password": 1024, "phone": 64}
     maximum = limits[kind] if request.max_length is None else request.max_length
     valid_bounds = (
         type(request.min_length) is int and type(maximum) is int and 0 <= request.min_length <= maximum <= limits[kind]
     )
     if not valid_bounds:
-        raise ValueError("Power input length bounds are invalid")
-    hint = None if request.placeholder is None else _public_text(request.placeholder, 120, "Power input placeholder")
+        raise ValueError("Action input length bounds are invalid")
+    hint = None if request.placeholder is None else _public_text(request.placeholder, 120, "Action input placeholder")
     return {**base, "placeholder": hint, "min_length": request.min_length, "max_length": maximum}
 
 

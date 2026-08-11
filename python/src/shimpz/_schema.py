@@ -1,4 +1,4 @@
-"""Compile Power type annotations into the supported JSON Schema subset."""
+"""Compile Action type annotations into the supported JSON Schema subset."""
 
 from __future__ import annotations
 
@@ -41,14 +41,14 @@ class _SchemaFailure(TypeError):
         self.annotation = annotation
 
 
-def compile_power_schemas(
+def compile_action_schemas(
     body: object,
     *,
     project_root: Path | None = None,
 ) -> tuple[JsonSchema, JsonSchema]:
-    """Compile one Power signature into closed input and output schemas."""
+    """Compile one Action signature into closed input and output schemas."""
     if not callable(body):
-        message = "Power body is not callable"
+        message = "Action body is not callable"
         raise TypeError(message)
     signature = inspect.signature(body)
     hints = get_type_hints(body, include_extras=True)
@@ -64,7 +64,7 @@ def compile_power_schemas(
         )
     return_annotation = hints.get("return", inspect.Signature.empty)
     if return_annotation is inspect.Signature.empty:
-        message = "Power return type annotation is required"
+        message = "Action return type annotation is required"
         raise TypeError(message)
     return _object_schema(properties), _output_schema(return_annotation, body, project_root)
 
@@ -92,7 +92,7 @@ def schema_for_type(annotation: object, *, _project_root: Path | None = None) ->
         return {"type": "array", "items": schema_for_type(arguments[0], _project_root=_project_root)}
     if is_typeddict(annotation):
         return _typed_dict_schema(annotation, _project_root)
-    message = "unsupported Power type annotation"
+    message = "unsupported Action type annotation"
     raise _SchemaFailure(message, annotation)
 
 
@@ -102,13 +102,13 @@ def _validate_parameter(
     hints: dict[str, object],
 ) -> None:
     if parameter.kind not in {inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY}:
-        message = "Power parameters cannot use positional-only, *args, or **kwargs"
+        message = "Action parameters cannot use positional-only, *args, or **kwargs"
         raise TypeError(message)
     if parameter.default is not inspect.Signature.empty:
-        message = "Power parameters cannot have default values"
+        message = "Action parameters cannot have default values"
         raise TypeError(message)
     if name not in hints:
-        message = f"Power parameter {name} requires a type annotation"
+        message = f"Action parameter {name} requires a type annotation"
         raise TypeError(message)
 
 
@@ -126,7 +126,7 @@ def _output_schema(annotation: object, body: object, project_root: Path | None) 
         site,
     )
     if schema.get("type") != "object":
-        message = "Power return type must be a TypedDict"
+        message = "Action return type must be a TypedDict"
         raise site.diagnostic(message, annotation)
     return schema
 

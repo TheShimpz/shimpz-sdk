@@ -5,12 +5,12 @@ use pyo3::prelude::*;
 use serde::Deserialize;
 use serde_json::Value;
 use shimpz_genesis::{
-    AssistantContract, AssistantManifest, PowerContract, SourceEntry, SourceEntryKind,
+    ActionContract, AssistantContract, AssistantManifest, SourceEntry, SourceEntryKind,
     validate_source_icon as validate_icon, validate_source_tree as validate_tree, validate_value,
 };
 
 #[derive(Deserialize)]
-struct PowerInput {
+struct ActionInput {
     id: String,
     integrations: Vec<String>,
     human_requests: Vec<String>,
@@ -52,14 +52,14 @@ fn validate_source_icon(contents: &[u8]) -> PyResult<()> {
 }
 
 #[pyfunction]
-fn build_contract(manifest_source: &str, powers_json: &str) -> PyResult<String> {
+fn build_contract(manifest_source: &str, actions_json: &str) -> PyResult<String> {
     let manifest = AssistantManifest::parse(manifest_source).map_err(value_error)?;
-    let inputs: Vec<PowerInput> = serde_json::from_str(powers_json)
-        .map_err(|_| PyValueError::new_err("Powers JSON is invalid"))?;
-    let powers = inputs
+    let inputs: Vec<ActionInput> = serde_json::from_str(actions_json)
+        .map_err(|_| PyValueError::new_err("Actions JSON is invalid"))?;
+    let actions = inputs
         .into_iter()
         .map(|input| {
-            PowerContract::new(
+            ActionContract::new(
                 input.id,
                 input.integrations,
                 input.human_requests,
@@ -69,9 +69,9 @@ fn build_contract(manifest_source: &str, powers_json: &str) -> PyResult<String> 
             .map_err(value_error)
         })
         .collect::<PyResult<Vec<_>>>()?;
-    let contract = AssistantContract::build(&manifest, powers).map_err(value_error)?;
+    let contract = AssistantContract::build(&manifest, actions).map_err(value_error)?;
     let bytes = contract.canonical_bytes().map_err(value_error)?;
-    String::from_utf8(bytes).map_err(|_| PyValueError::new_err("Power contract is not UTF-8"))
+    String::from_utf8(bytes).map_err(|_| PyValueError::new_err("Action contract is not UTF-8"))
 }
 
 #[pyfunction]

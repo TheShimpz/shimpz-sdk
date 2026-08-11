@@ -36,7 +36,7 @@ def test_validates_manifest_through_genesis() -> None:
 
 
 def test_builds_contract_through_genesis() -> None:
-    powers = [
+    actions = [
         {
             "id": "example",
             "integrations": [],
@@ -46,10 +46,10 @@ def test_builds_contract_through_genesis() -> None:
         }
     ]
 
-    contract = json.loads(_native.build_contract(MANIFEST, json.dumps(powers)))
+    contract = json.loads(_native.build_contract(MANIFEST, json.dumps(actions)))
 
     assert contract["version"] == 1
-    assert contract["powers"][0]["id"] == "example"
+    assert contract["actions"][0]["id"] == "example"
 
 
 def test_validates_private_values_without_leaking_them() -> None:

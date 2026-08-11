@@ -23,32 +23,32 @@ genesis = "Test examples safely."
 allowed_hosts = []
 """
 
-POWER = """
+ACTION = """
 from typing import TypedDict
 
-from shimpz import power
+from shimpz import action
 
 
 class Result(TypedDict):
     greeting: str
 
 
-@power()
+@action()
 async def run(name: str) -> Result:
     return {"greeting": f"Hello, {name}"}
 """
 
-HUMAN_POWER = """
+HUMAN_ACTION = """
 from typing import TypedDict
 
-from shimpz import Context, power
+from shimpz import Context, action
 
 
 class Result(TypedDict):
     approved: bool
 
 
-@power(human_requests=["approval"])
+@action(human_requests=["approval"])
 async def run(name: str, *, ctx: Context) -> Result:
     ctx.request_approval(
         title="Send greeting",
@@ -58,14 +58,14 @@ async def run(name: str, *, ctx: Context) -> Result:
 """
 
 
-def create_project(root: Path, source: str = POWER) -> Path:
+def create_project(root: Path, source: str = ACTION) -> Path:
     root.mkdir()
     write_icon(root)
     (root / "shimpz.toml").write_text(MANIFEST, encoding="utf-8")
     (root / "pyproject.toml").write_text("[project]\nname = 'assistant'\n", encoding="utf-8")
-    powers = root / "powers"
-    powers.mkdir()
-    (powers / "greet.py").write_text(source, encoding="utf-8")
+    actions = root / "actions"
+    actions.mkdir()
+    (actions / "greet.py").write_text(source, encoding="utf-8")
     return root
 
 
@@ -74,10 +74,10 @@ def test_builds_a_contract_for_the_rust_cli(tmp_path: Path) -> None:
 
     contract = json.loads(dispatch(["contract", str(root)], io.StringIO("")))
 
-    assert contract["powers"][0]["id"] == "greet"
+    assert contract["actions"][0]["id"] == "greet"
 
 
-def test_invokes_a_power_from_a_stdin_request(tmp_path: Path) -> None:
+def test_invokes_a_action_from_a_stdin_request(tmp_path: Path) -> None:
     root = create_project(tmp_path / "assistant")
     request = io.StringIO('{"input":{"name":"Ada"},"integrations":{}}')
 
@@ -95,7 +95,7 @@ def test_rejects_duplicate_json_keys(tmp_path: Path) -> None:
 
 
 def test_returns_a_tagged_request_and_replays_its_response(tmp_path: Path) -> None:
-    root = create_project(tmp_path / "assistant", HUMAN_POWER)
+    root = create_project(tmp_path / "assistant", HUMAN_ACTION)
     invocation = {"input": {"name": "Ada"}, "integrations": {}}
 
     suspended = json.loads(dispatch(["invoke", str(root), "greet"], io.StringIO(json.dumps(invocation))))

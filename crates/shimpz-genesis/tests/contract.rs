@@ -1,7 +1,7 @@
-//! Power machine-contract acceptance tests.
+//! Action machine-contract acceptance tests.
 
 use serde_json::{Value, json};
-use shimpz_genesis::{AssistantContract, AssistantManifest, PowerContract};
+use shimpz_genesis::{ActionContract, AssistantContract, AssistantManifest};
 
 const MANIFEST: &str = r#"
 [shimpz]
@@ -45,27 +45,27 @@ fn schema() -> Value {
     })
 }
 
-fn power(id: &str, integrations: Vec<String>) -> PowerContract {
-    PowerContract::new(id, integrations, Vec::new(), schema(), schema()).expect("valid Power")
+fn action(id: &str, integrations: Vec<String>) -> ActionContract {
+    ActionContract::new(id, integrations, Vec::new(), schema(), schema()).expect("valid Action")
 }
 
 #[test]
-fn sorts_and_serializes_powers_deterministically() {
+fn sorts_and_serializes_actions_deterministically() {
     let manifest = AssistantManifest::parse(MANIFEST).expect("valid manifest");
     let contract = AssistantContract::build(
         &manifest,
         vec![
-            power("list-zones", vec!["cloudflare".into()]),
-            power("create-dns", Vec::new()),
+            action("list-zones", vec!["cloudflare".into()]),
+            action("create-dns", Vec::new()),
         ],
     )
     .expect("valid contract");
 
-    assert_eq!(contract.powers()[0].id(), "create-dns");
+    assert_eq!(contract.actions()[0].id(), "create-dns");
     assert_eq!(
         String::from_utf8(contract.canonical_bytes().expect("serialize")).expect("UTF-8"),
         concat!(
-            "{\"version\":1,\"powers\":[",
+            "{\"version\":1,\"actions\":[",
             "{\"id\":\"create-dns\",\"integrations\":[],",
             "\"human_requests\":[],",
             "\"input_schema\":{\"additionalProperties\":false,\"properties\":{},",
@@ -84,36 +84,36 @@ fn sorts_and_serializes_powers_deterministically() {
 }
 
 #[test]
-fn rejects_duplicate_power_ids() {
+fn rejects_duplicate_action_ids() {
     let manifest = AssistantManifest::parse(MANIFEST).expect("valid manifest");
     let error = AssistantContract::build(
         &manifest,
         vec![
-            power("list-zones", vec!["cloudflare".into()]),
-            power("list-zones", Vec::new()),
+            action("list-zones", vec!["cloudflare".into()]),
+            action("list-zones", Vec::new()),
         ],
     )
-    .expect_err("duplicate Power");
+    .expect_err("duplicate Action");
 
-    assert_eq!(error.message(), "Power ids must be unique");
+    assert_eq!(error.message(), "Action ids must be unique");
 }
 
 #[test]
 fn rejects_undeclared_or_unused_integrations() {
     let manifest = AssistantManifest::parse(MANIFEST).expect("valid manifest");
     let undeclared =
-        AssistantContract::build(&manifest, vec![power("list-zones", vec!["other".into()])])
+        AssistantContract::build(&manifest, vec![action("list-zones", vec!["other".into()])])
             .expect_err("undeclared Integration");
     assert_eq!(
         undeclared.message(),
-        "Power references an undeclared Integration"
+        "Action references an undeclared Integration"
     );
 
-    let unused = AssistantContract::build(&manifest, vec![power("list-zones", Vec::new())])
+    let unused = AssistantContract::build(&manifest, vec![action("list-zones", Vec::new())])
         .expect_err("unused Integration");
     assert_eq!(
         unused.message(),
-        "every declared Integration must be used by a Power"
+        "every declared Integration must be used by an Action"
     );
 }
 
@@ -123,9 +123,9 @@ fn rejects_open_or_non_object_schemas() {
         json!({"type": "string"}),
         json!({"type": "object", "properties": {}, "required": []}),
     ] {
-        let error = PowerContract::new("list-zones", Vec::new(), Vec::new(), invalid, schema())
+        let error = ActionContract::new("list-zones", Vec::new(), Vec::new(), invalid, schema())
             .expect_err("schema");
-        assert!(error.message().starts_with("Power schema"));
+        assert!(error.message().starts_with("Action schema"));
     }
 }
 
@@ -142,10 +142,10 @@ fn rejects_unsupported_nested_schema_keywords() {
         "required": ["zone"],
         "additionalProperties": false
     });
-    let error = PowerContract::new("list-zones", Vec::new(), Vec::new(), invalid, schema())
+    let error = ActionContract::new("list-zones", Vec::new(), Vec::new(), invalid, schema())
         .expect_err("keyword");
 
-    assert_eq!(error.message(), "Power schema keyword is unsupported");
+    assert_eq!(error.message(), "Action schema keyword is unsupported");
 }
 
 #[test]
@@ -173,13 +173,13 @@ fn accepts_closed_nested_objects_and_arrays() {
         "additionalProperties": false
     });
 
-    PowerContract::new("list-zones", Vec::new(), Vec::new(), schema(), nested)
+    ActionContract::new("list-zones", Vec::new(), Vec::new(), schema(), nested)
         .expect("supported schema");
 }
 
 #[test]
-fn rejects_more_than_four_integrations_per_power() {
-    let error = PowerContract::new(
+fn rejects_more_than_four_integrations_per_action() {
+    let error = ActionContract::new(
         "list-zones",
         vec!["a".into(), "b".into(), "c".into(), "d".into(), "e".into()],
         Vec::new(),
@@ -187,24 +187,30 @@ fn rejects_more_than_four_integrations_per_power() {
         schema(),
     )
     .expect_err("too many integrations");
-    assert_eq!(error.message(), "Power declares too many Integrations");
+    assert_eq!(error.message(), "Action declares too many Integrations");
 }
 
 #[test]
-fn rejects_empty_and_oversized_power_catalogs() {
+fn rejects_empty_and_oversized_action_catalogs() {
     let manifest = AssistantManifest::parse(NO_ACCOUNTS).expect("valid manifest");
-    let none = AssistantContract::build(&manifest, Vec::new()).expect_err("zero powers");
-    assert_eq!(none.message(), "Power catalog must contain 1 to 128 Powers");
+    let none = AssistantContract::build(&manifest, Vec::new()).expect_err("zero actions");
+    assert_eq!(
+        none.message(),
+        "Action catalog must contain 1 to 128 Actions"
+    );
 
-    let many: Vec<PowerContract> = (0..129)
-        .map(|index| power(&format!("p{index}"), Vec::new()))
+    let many: Vec<ActionContract> = (0..129)
+        .map(|index| action(&format!("p{index}"), Vec::new()))
         .collect();
-    let over = AssistantContract::build(&manifest, many).expect_err("129 powers");
-    assert_eq!(over.message(), "Power catalog must contain 1 to 128 Powers");
+    let over = AssistantContract::build(&manifest, many).expect_err("129 actions");
+    assert_eq!(
+        over.message(),
+        "Action catalog must contain 1 to 128 Actions"
+    );
 }
 
 #[test]
-fn rejects_oversized_and_hyphen_powers() {
+fn rejects_oversized_and_hyphen_actions() {
     let mut properties = serde_json::Map::new();
     for index in 0..10_000 {
         properties.insert(format!("p{index}"), json!({"type": "string"}));
@@ -215,18 +221,18 @@ fn rejects_oversized_and_hyphen_powers() {
         "required": [],
         "properties": properties
     });
-    let size = PowerContract::new("list-zones", Vec::new(), Vec::new(), big, schema())
+    let size = ActionContract::new("list-zones", Vec::new(), Vec::new(), big, schema())
         .expect_err("oversized schema");
-    assert_eq!(size.message(), "Power schema is too large");
+    assert_eq!(size.message(), "Action schema is too large");
 
-    let id = PowerContract::new("a--b", Vec::new(), Vec::new(), schema(), schema())
+    let id = ActionContract::new("a--b", Vec::new(), Vec::new(), schema(), schema())
         .expect_err("double hyphen id");
-    assert_eq!(id.message(), "Power id is invalid");
+    assert_eq!(id.message(), "Action id is invalid");
 }
 
 #[test]
 fn validates_and_sorts_human_request_capabilities() {
-    let power = PowerContract::new(
+    let action = ActionContract::new(
         "confirm-dns",
         Vec::new(),
         vec!["input:text".into(), "approval".into()],
@@ -234,9 +240,9 @@ fn validates_and_sorts_human_request_capabilities() {
         schema(),
     )
     .expect("human requests");
-    assert_eq!(power.human_requests(), ["approval", "input:text"]);
+    assert_eq!(action.human_requests(), ["approval", "input:text"]);
 
-    let invalid = PowerContract::new(
+    let invalid = ActionContract::new(
         "confirm-dns",
         Vec::new(),
         vec!["input:unknown".into()],
@@ -244,5 +250,5 @@ fn validates_and_sorts_human_request_capabilities() {
         schema(),
     )
     .expect_err("invalid human request");
-    assert_eq!(invalid.message(), "Power human requests are invalid");
+    assert_eq!(invalid.message(), "Action human requests are invalid");
 }

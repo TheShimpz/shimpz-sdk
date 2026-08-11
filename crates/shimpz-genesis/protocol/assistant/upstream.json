@@ -1,7 +1,7 @@
 {
   "repository": "https://github.com/TheShimpz/shimpz-developers",
-  "commit": "7cb822e89c22e06cebc7f1603fc03cba36ac5498",
+  "commit": "f0d651b74715cbfe7e252ffc0e9bd28f5864bf88",
   "path": "protocol/assistant/v1",
-  "tree": "d5c2bddd745c9399649d3728ef4aac27830defc9",
-  "contract_files_sha256": "9beafd860e03ad61b6828afa5304a15205975229f80f6158e6cdfe9ec4dbb080"
+  "tree": "b07ea25e162377ea931f18839fdbca853d3163cc",
+  "contract_files_sha256": "cf3b3c98d9aab4272a22f976a74d6614133b20c6a165d5c282c58f22a96ddc40"
 }

@@ -10,14 +10,14 @@ pip install shimpz
 ```python
 from typing import TypedDict
 
-from shimpz import Context, InputOption, InputRequest, power
+from shimpz import Context, InputOption, InputRequest, action
 
 
 class CreatedDns(TypedDict):
     id: str
 
 
-@power(
+@action(
     integrations=["cloudflare"],
     human_requests=["approval", "input:choice"],
 )
@@ -26,7 +26,7 @@ async def run(zone: str, *, ctx: Context) -> CreatedDns:
         InputRequest(
             kind="choice",
             title="Choose the DNS mode",
-            description="The Power needs this decision before it can continue.",
+            description="The Action needs this decision before it can continue.",
             label="Mode",
             options=(
                 InputOption("proxied", "Proxied"),
@@ -44,6 +44,6 @@ async def run(zone: str, *, ctx: Context) -> CreatedDns:
 
 Attribute access (`ctx.integrations.cloudflare`) is a convenience for identifier-safe ids; for ids containing hyphens use subscript access, e.g. `ctx.integrations['cloudflare-api'].access_token`.
 
-Human requests are declared explicitly on `@power`. They must happen before the first Integration token is read. The runtime suspends and deterministically replays the Power after the Team supplies a response; code before a request must therefore be free of external side effects. Password input is for a third-party secret, is always the final human request, and cannot be returned as a Power result. `request_auth` accepts the platform assurance levels `reauth`, `second-factor`, and `phishing-resistant`; authentication factors never enter the Power.
+Human requests are declared explicitly on `@action`. They must happen before the first Integration token is read. The runtime suspends and deterministically replays the Action after the Team supplies a response; code before a request must therefore be free of external side effects. Password input is for a third-party secret, is always the final human request, and cannot be returned as a Action result. `request_auth` accepts the platform assurance levels `reauth`, `second-factor`, and `phishing-resistant`; authentication factors never enter the Action.
 
 The native `_native` module is private and may not be imported by Assistants.

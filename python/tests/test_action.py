@@ -1,26 +1,26 @@
-"""Tests for the Power authoring decorator."""
+"""Tests for the Action authoring decorator."""
 
 import pytest
-from shimpz import power
-from shimpz.power import get_power_metadata
+from shimpz import action
+from shimpz.action import get_action_metadata
 
 
 def test_declares_an_async_run_without_a_registry() -> None:
-    @power(integrations=["cloudflare"], human_requests=["input:text", "approval"])
+    @action(integrations=["cloudflare"], human_requests=["input:text", "approval"])
     async def run(zone: str) -> str:
         return zone
 
-    metadata = get_power_metadata(run)
+    metadata = get_action_metadata(run)
 
     assert metadata is not None
     assert metadata.integrations == ("cloudflare",)
     assert metadata.human_requests == ("approval", "input:text")
 
 
-def test_rejects_a_synchronous_power() -> None:
+def test_rejects_a_synchronous_action() -> None:
     with pytest.raises(TypeError, match="must be async"):
 
-        @power()
+        @action()
         def run() -> None:
             pass
 
@@ -28,7 +28,7 @@ def test_rejects_a_synchronous_power() -> None:
 def test_rejects_a_function_not_named_run() -> None:
     with pytest.raises(ValueError, match="named run"):
 
-        @power()
+        @action()
         async def create_dns() -> None:
             pass
 
@@ -36,12 +36,12 @@ def test_rejects_a_function_not_named_run() -> None:
 @pytest.mark.parametrize("integrations", [["Cloudflare"], ["cloudflare-"], ["cloudflare", "cloudflare"]])
 def test_rejects_invalid_integrations(integrations: list[str]) -> None:
     with pytest.raises(ValueError, match=r"integrations|integration id"):
-        power(integrations=integrations)
+        action(integrations=integrations)
 
 
 def test_rejects_a_string_as_the_integration_collection() -> None:
     with pytest.raises(TypeError, match="iterable"):
-        power(integrations="cloudflare")
+        action(integrations="cloudflare")
 
 
 @pytest.mark.parametrize(
@@ -50,9 +50,9 @@ def test_rejects_a_string_as_the_integration_collection() -> None:
 )
 def test_rejects_invalid_human_requests(human_requests: list[str]) -> None:
     with pytest.raises(ValueError, match="human request"):
-        power(human_requests=human_requests)
+        action(human_requests=human_requests)
 
 
 def test_rejects_a_string_as_the_human_request_collection() -> None:
     with pytest.raises(TypeError, match="iterable"):
-        power(human_requests="approval")
+        action(human_requests="approval")

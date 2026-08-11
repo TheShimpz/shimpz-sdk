@@ -1,4 +1,4 @@
-"""Public value objects for one Power human request."""
+"""Public value objects for one Action human request."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ class InputOption:
 
 @dataclass(frozen=True, slots=True)
 class InputRequest:
-    """One specialized input prompt declared at the point a Power needs it."""
+    """One specialized input prompt declared at the point a Action needs it."""
 
     kind: InputKind
     title: str

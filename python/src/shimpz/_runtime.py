@@ -1,4 +1,4 @@
-"""Validated in-process Power execution used by the Shimpz CLI."""
+"""Validated in-process Action execution used by the Shimpz CLI."""
 
 from __future__ import annotations
 
@@ -12,31 +12,31 @@ from typing import Any
 
 from . import _native
 from ._human import HumanRequestSuspension
-from ._project import AssistantProject, PowerDefinition
+from ._project import ActionDefinition, AssistantProject
 from .context import Context
 
 _MAX_VALUE_BYTES = 512 * 1_024
 
 
-class PowerExecutionError(RuntimeError):
-    """A Power failed without exposing its input or integration secrets."""
+class ActionExecutionError(RuntimeError):
+    """A Action failed without exposing its input or integration secrets."""
 
 
-async def invoke_power(
+async def invoke_action(
     project: AssistantProject,
-    power_id: str,
+    action_id: str,
     inputs: Mapping[str, object],
     integration_tokens: Mapping[str, str] | None = None,
     responses: tuple[Mapping[str, object], ...] = (),
 ) -> object:
-    """Validate and invoke one discovered Power."""
-    definition = _find_power(project, power_id)
+    """Validate and invoke one discovered Action."""
+    definition = _find_action(project, action_id)
     tokens = dict(integration_tokens or {})
     if set(tokens) != set(definition.integrations):
-        message = "Power integrations do not match its declaration"
+        message = "Action integrations do not match its declaration"
         raise ValueError(message)
     input_value = dict(inputs)
-    _validate_value(definition.input_schema, input_value, "Power input")
+    _validate_value(definition.input_schema, input_value, "Action input")
     context = Context(tokens, definition.human_requests, responses)
     arguments = dict(input_value)
     if "ctx" in inspect.signature(definition.body).parameters:
@@ -49,18 +49,18 @@ async def invoke_power(
     if isinstance(result, BaseException):
         if isinstance(result, HumanRequestSuspension):
             raise result
-        message = "Power execution failed"
-        raise PowerExecutionError(message) from None
+        message = "Action execution failed"
+        raise ActionExecutionError(message) from None
     context._finish(result)
-    _validate_value(definition.output_schema, result, "Power result")
+    _validate_value(definition.output_schema, result, "Action result")
     return result
 
 
-def _find_power(project: AssistantProject, power_id: str) -> PowerDefinition:
-    for definition in project.powers:
-        if definition.id == power_id:
+def _find_action(project: AssistantProject, action_id: str) -> ActionDefinition:
+    for definition in project.actions:
+        if definition.id == action_id:
             return definition
-    message = "Power id does not exist"
+    message = "Action id does not exist"
     raise ValueError(message)
 
 

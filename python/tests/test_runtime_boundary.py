@@ -1,4 +1,4 @@
-"""Tests for the Power subprocess result boundary."""
+"""Tests for the Action subprocess result boundary."""
 
 import contextlib
 import json
@@ -25,33 +25,33 @@ genesis = "Test examples safely."
 allowed_hosts = []
 """
 
-SYSTEM_EXIT_POWER = """
+SYSTEM_EXIT_ACTION = """
 from typing import TypedDict
 
-from shimpz import power
+from shimpz import action
 
 
 class Result(TypedDict):
     greeting: str
 
 
-@power()
+@action()
 async def run(name: str) -> Result:
     print("FORGED-STDOUT-BYTES")
     raise SystemExit(0)
 """
 
-PRINTING_POWER = """
+PRINTING_ACTION = """
 from typing import TypedDict
 
-from shimpz import power
+from shimpz import action
 
 
 class Result(TypedDict):
     greeting: str
 
 
-@power()
+@action()
 async def run(name: str) -> Result:
     print("CHATTER-ON-STDOUT")
     return {"greeting": f"Hello, {name}"}
@@ -63,9 +63,9 @@ def _project(root: Path, source: str) -> Path:
     write_icon(root)
     (root / "shimpz.toml").write_text(MANIFEST, encoding="utf-8")
     (root / "pyproject.toml").write_text("[project]\nname = 'assistant'\n", encoding="utf-8")
-    powers = root / "powers"
-    powers.mkdir()
-    (powers / "act.py").write_text(source, encoding="utf-8")
+    actions = root / "actions"
+    actions.mkdir()
+    (actions / "act.py").write_text(source, encoding="utf-8")
     return root
 
 
@@ -110,14 +110,14 @@ def _invoke(root: Path) -> _Result:
 
 
 def test_system_exit_cannot_forge_stdout(tmp_path: Path) -> None:
-    result = _invoke(_project(tmp_path / "assistant", SYSTEM_EXIT_POWER))
+    result = _invoke(_project(tmp_path / "assistant", SYSTEM_EXIT_ACTION))
 
     assert result.returncode != 0
     assert "FORGED-STDOUT-BYTES" not in result.stdout
 
 
-def test_printing_power_returns_only_validated_json(tmp_path: Path) -> None:
-    result = _invoke(_project(tmp_path / "assistant", PRINTING_POWER))
+def test_printing_action_returns_only_validated_json(tmp_path: Path) -> None:
+    result = _invoke(_project(tmp_path / "assistant", PRINTING_ACTION))
 
     assert result.returncode == 0
     assert json.loads(result.stdout) == {

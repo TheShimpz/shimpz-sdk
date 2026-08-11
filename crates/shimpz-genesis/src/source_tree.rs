@@ -79,7 +79,7 @@ pub fn validate_source_tree(entries: &[SourceEntry]) -> Result<(), SourceTreeErr
     let mut has_manifest = false;
     let mut has_pyproject = false;
     let mut has_icon = false;
-    let mut has_power = false;
+    let mut has_action = false;
 
     if entries.len() > MAX_FILES {
         return reject("file_count_exceeded");
@@ -98,13 +98,13 @@ pub fn validate_source_tree(entries: &[SourceEntry]) -> Result<(), SourceTreeErr
         has_manifest |= entry.path() == "shimpz.toml";
         has_pyproject |= entry.path() == "pyproject.toml";
         has_icon |= entry.path() == "icon.png";
-        has_power |= components.first() == Some(&"powers");
+        has_action |= components.first() == Some(&"actions");
     }
     if !has_manifest || !has_pyproject || !has_icon {
         return reject("missing_required_file");
     }
-    if !has_power {
-        return reject("missing_power");
+    if !has_action {
+        return reject("missing_action");
     }
     if archive_size(entries, directories.len()) > MAX_PACKAGE_BYTES {
         return reject("package_too_large");
@@ -157,8 +157,8 @@ fn validate_ustar_path(path: &str) -> Result<(), SourceTreeError> {
 
 fn validate_membership(components: &[&str]) -> Result<(), SourceTreeError> {
     match components {
-        ["powers", filename] if valid_power_filename(filename) => Ok(()),
-        ["powers", ..] => reject("nested_power"),
+        ["actions", filename] if valid_action_filename(filename) => Ok(()),
+        ["actions", ..] => reject("nested_action"),
         ["icon.png" | "shimpz.toml" | "pyproject.toml"] | ["lib" | "tests", _, ..] => Ok(()),
         _ => reject("unknown_root"),
     }
@@ -192,7 +192,7 @@ fn archive_size(entries: &[SourceEntry], directory_count: usize) -> u64 {
     files.sum::<u64>() + directory_bytes + 2 * TAR_BLOCK_BYTES
 }
 
-fn valid_power_filename(filename: &str) -> bool {
+fn valid_action_filename(filename: &str) -> bool {
     let Some(stem) = filename.strip_suffix(".py") else {
         return false;
     };
@@ -200,10 +200,10 @@ fn valid_power_filename(filename: &str) -> bool {
         && stem
             .bytes()
             .enumerate()
-            .all(|(index, byte)| is_power_byte(byte, index == 0))
+            .all(|(index, byte)| is_action_byte(byte, index == 0))
 }
 
-const fn is_power_byte(byte: u8, first: bool) -> bool {
+const fn is_action_byte(byte: u8, first: bool) -> bool {
     byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-' || (!first && byte == b'.')
 }
 

@@ -28,7 +28,7 @@ impl Display for ManifestError {
 
 impl std::error::Error for ManifestError {}
 
-/// A closed Power catalog construction error.
+/// A closed Action catalog construction error.
 #[derive(Debug, Eq, PartialEq)]
 pub struct ContractError {
     message: &'static str,

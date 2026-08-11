@@ -24,9 +24,9 @@ const HUMAN_REQUEST_CAPABILITIES: [&str; 11] = [
     "auth:phishing-resistant",
 ];
 
-/// One reviewed Power in the generated machine contract.
+/// One reviewed Action in the generated machine contract.
 #[derive(Clone, Debug, Serialize, PartialEq)]
-pub struct PowerContract {
+pub struct ActionContract {
     id: String,
     integrations: Vec<String>,
     human_requests: Vec<String>,
@@ -34,8 +34,8 @@ pub struct PowerContract {
     output_schema: Value,
 }
 
-impl PowerContract {
-    /// Construct one Power using its file-derived id.
+impl ActionContract {
+    /// Construct one Action using its file-derived id.
     ///
     /// # Errors
     ///
@@ -49,7 +49,7 @@ impl PowerContract {
         output_schema: Value,
     ) -> Result<Self, ContractError> {
         let id = id.into();
-        validate_power(
+        validate_action(
             &id,
             &integrations,
             &human_requests,
@@ -66,7 +66,7 @@ impl PowerContract {
         })
     }
 
-    /// Return the canonical Power id.
+    /// Return the canonical Action id.
     #[must_use]
     pub fn id(&self) -> &str {
         &self.id
@@ -89,33 +89,33 @@ impl PowerContract {
 #[derive(Clone, Debug, Serialize, PartialEq)]
 pub struct AssistantContract {
     version: u8,
-    powers: Vec<PowerContract>,
+    actions: Vec<ActionContract>,
 }
 
 impl AssistantContract {
-    /// Validate, sort, and close a complete Power catalog.
+    /// Validate, sort, and close a complete Action catalog.
     ///
     /// # Errors
     ///
-    /// Returns an error for duplicate Powers, undeclared Integrations, unused
+    /// Returns an error for duplicate Actions, undeclared Integrations, unused
     /// manifest Integrations, or a catalog larger than 512 KiB.
     pub fn build(
         manifest: &AssistantManifest,
-        mut powers: Vec<PowerContract>,
+        mut actions: Vec<ActionContract>,
     ) -> Result<Self, ContractError> {
-        powers.sort_by(|left, right| left.id.cmp(&right.id));
-        if !(1..=128).contains(&powers.len()) {
+        actions.sort_by(|left, right| left.id.cmp(&right.id));
+        if !(1..=128).contains(&actions.len()) {
             return Err(ContractError::new(
-                "Power catalog must contain 1 to 128 Powers",
+                "Action catalog must contain 1 to 128 Actions",
             ));
         }
-        validate_catalog(manifest, &powers)?;
+        validate_catalog(manifest, &actions)?;
         let contract = Self {
             version: SPEC_VERSION,
-            powers,
+            actions,
         };
         if contract.canonical_bytes()?.len() > MAX_CONTRACT_BYTES {
-            return Err(ContractError::new("Power contract is too large"));
+            return Err(ContractError::new("Action contract is too large"));
         }
         Ok(contract)
     }
@@ -127,7 +127,7 @@ impl AssistantContract {
     /// Returns an internal serialization error without exposing contract data.
     pub fn canonical_bytes(&self) -> Result<Vec<u8>, ContractError> {
         serde_json::to_vec(self)
-            .map_err(|_| ContractError::new("Power contract cannot be serialized"))
+            .map_err(|_| ContractError::new("Action contract cannot be serialized"))
     }
 
     /// Return the lowercase SHA-256 digest of the canonical bytes.
@@ -146,14 +146,14 @@ impl AssistantContract {
         Ok(output)
     }
 
-    /// Return Powers in canonical id order.
+    /// Return Actions in canonical id order.
     #[must_use]
-    pub fn powers(&self) -> &[PowerContract] {
-        &self.powers
+    pub fn actions(&self) -> &[ActionContract] {
+        &self.actions
     }
 }
 
-fn validate_power(
+fn validate_action(
     id: &str,
     integrations: &[String],
     human_requests: &[String],
@@ -161,26 +161,28 @@ fn validate_power(
     output_schema: &Value,
 ) -> Result<(), ContractError> {
     if !valid_id(id) {
-        return Err(ContractError::new("Power id is invalid"));
+        return Err(ContractError::new("Action id is invalid"));
     }
     if integrations.len() > 4 {
-        return Err(ContractError::new("Power declares too many Integrations"));
+        return Err(ContractError::new("Action declares too many Integrations"));
     }
     let mut unique = HashSet::new();
     if integrations
         .iter()
         .any(|integration| !valid_id(integration) || !unique.insert(integration))
     {
-        return Err(ContractError::new("Power integrations are invalid"));
+        return Err(ContractError::new("Action integrations are invalid"));
     }
     if human_requests.len() > HUMAN_REQUEST_CAPABILITIES.len() {
-        return Err(ContractError::new("Power declares too many human requests"));
+        return Err(ContractError::new(
+            "Action declares too many human requests",
+        ));
     }
     let mut unique_requests = HashSet::new();
     if human_requests.iter().any(|request| {
         !HUMAN_REQUEST_CAPABILITIES.contains(&request.as_str()) || !unique_requests.insert(request)
     }) {
-        return Err(ContractError::new("Power human requests are invalid"));
+        return Err(ContractError::new("Action human requests are invalid"));
     }
     validate_root_schema(input_schema)?;
     validate_root_schema(output_schema)?;
@@ -191,27 +193,27 @@ fn validate_power(
 
 fn schema_within_limit(schema: &Value) -> Result<(), ContractError> {
     let encoded = serde_json::to_vec(schema)
-        .map_err(|_| ContractError::new("Power schema cannot be serialized"))?;
+        .map_err(|_| ContractError::new("Action schema cannot be serialized"))?;
     if encoded.len() > MAX_SCHEMA_BYTES {
-        return Err(ContractError::new("Power schema is too large"));
+        return Err(ContractError::new("Action schema is too large"));
     }
     Ok(())
 }
 
 fn validate_catalog(
     manifest: &AssistantManifest,
-    powers: &[PowerContract],
+    actions: &[ActionContract],
 ) -> Result<(), ContractError> {
     let mut ids = HashSet::new();
     let mut used_integrations = BTreeSet::new();
-    for power in powers {
-        if !ids.insert(power.id()) {
-            return Err(ContractError::new("Power ids must be unique"));
+    for action in actions {
+        if !ids.insert(action.id()) {
+            return Err(ContractError::new("Action ids must be unique"));
         }
-        for integration in power.integrations() {
+        for integration in action.integrations() {
             if !manifest.integrations.contains_key(integration) {
                 return Err(ContractError::new(
-                    "Power references an undeclared Integration",
+                    "Action references an undeclared Integration",
                 ));
             }
             used_integrations.insert(integration.as_str());
@@ -225,7 +227,7 @@ fn validate_catalog(
         != used_integrations
     {
         return Err(ContractError::new(
-            "every declared Integration must be used by a Power",
+            "every declared Integration must be used by an Action",
         ));
     }
     Ok(())
