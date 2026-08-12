@@ -1,4 +1,4 @@
-"""Invocation-scoped capabilities passed to a Action."""
+"""Invocation-scoped capabilities passed to an Action."""
 
 from __future__ import annotations
 

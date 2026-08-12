@@ -19,7 +19,7 @@ _MAX_VALUE_BYTES = 512 * 1_024
 
 
 class ActionExecutionError(RuntimeError):
-    """A Action failed without exposing its input or integration secrets."""
+    """An Action failed without exposing its input or integration secrets."""
 
 
 async def invoke_action(

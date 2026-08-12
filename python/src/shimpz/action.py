@@ -16,7 +16,7 @@ ActionBody = Callable[Params, Awaitable[Result]]
 
 @dataclass(frozen=True, slots=True)
 class ActionMetadata:
-    """Immutable author intent attached to a Action body."""
+    """Immutable author intent attached to an Action body."""
 
     integrations: tuple[str, ...]
     human_requests: tuple[str, ...]
@@ -33,13 +33,13 @@ def action(
 
     def decorate(body: ActionBody) -> ActionBody:
         if body.__name__ != "run":
-            message = "a Action function must be named run"
+            message = "an Action function must be named run"
             raise ValueError(message)
         if not inspect.iscoroutinefunction(body):
-            message = "a Action function must be async"
+            message = "an Action function must be async"
             raise TypeError(message)
         if hasattr(body, _METADATA_ATTRIBUTE):
-            message = "a Action function can only be declared once"
+            message = "an Action function can only be declared once"
             raise ValueError(message)
         setattr(
             body,

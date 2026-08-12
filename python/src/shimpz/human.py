@@ -19,7 +19,7 @@ class InputOption:
 
 @dataclass(frozen=True, slots=True)
 class InputRequest:
-    """One specialized input prompt declared at the point a Action needs it."""
+    """One specialized input prompt declared at the point an Action needs it."""
 
     kind: InputKind
     title: str
