@@ -9,7 +9,7 @@ from typing import Literal
 from ._human import HumanRequestRuntime
 from .human import InputOption, InputRequest
 
-Assurance = Literal["reauth", "second-factor", "phishing-resistant"]
+Authentication = Literal["password", "totp", "passkey"]
 
 
 class OAuthIntegration:
@@ -78,12 +78,12 @@ class Context:
         descriptor = _copy(title, description)
         self._human.resolve("approval", descriptor)
 
-    def request_auth(self, assurance: Assurance, *, title: str, description: str) -> None:
-        """Pause for platform-side assurance without receiving authentication material."""
-        if assurance not in {"reauth", "second-factor", "phishing-resistant"}:
-            raise ValueError("Action assurance is invalid")
+    def request_auth(self, authentication: Authentication, *, title: str, description: str) -> None:
+        """Authorize through one platform-side mechanism without receiving its material."""
+        if authentication not in {"password", "totp", "passkey"}:
+            raise ValueError("Action authentication mechanism is invalid")
         descriptor = _copy(title, description)
-        self._human.resolve(f"auth:{assurance}", descriptor)
+        self._human.resolve(f"auth:{authentication}", descriptor)
 
     def request_input(self, request: InputRequest) -> str | list[str]:
         """Pause for one closed, specialized input field."""

@@ -20,12 +20,13 @@ class HumanRequestSuspension(Exception):
 class HumanRequestRuntime:
     """Match one Action execution against its Team-admitted response transcript."""
 
-    __slots__ = ("_allowed", "_index", "_responses", "_secret", "_token_observed")
+    __slots__ = ("_allowed", "_authorization_requested", "_index", "_responses", "_secret", "_token_observed")
 
     def __init__(self, allowed: Sequence[str], responses: Sequence[Mapping[str, object]]) -> None:
         if len(responses) > MAX_REQUESTS:
             raise ValueError("Action human response transcript is invalid")
         self._allowed = frozenset(allowed)
+        self._authorization_requested = False
         self._responses = tuple(dict(item) for item in responses)
         self._index = 0
         self._secret: str | None = None
@@ -43,6 +44,10 @@ class HumanRequestRuntime:
             raise ValueError("Action cannot request human input after observing an Integration token")
         if self._secret is not None:
             raise ValueError("Action password input must be its final human request")
+        if kind == "approval" or kind.startswith("auth:"):
+            if self._authorization_requested:
+                raise ValueError("Action can request authorization only once")
+            self._authorization_requested = True
         if self._index >= MAX_REQUESTS:
             raise ValueError("Action exceeded its human request limit")
         request = {"kind": kind, "ordinal": self._index, **descriptor}

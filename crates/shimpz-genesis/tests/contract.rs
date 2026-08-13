@@ -251,4 +251,17 @@ fn validates_and_sorts_human_request_capabilities() {
     )
     .expect_err("invalid human request");
     assert_eq!(invalid.message(), "Action human requests are invalid");
+
+    let duplicated_authority = ActionContract::new(
+        "confirm-dns",
+        Vec::new(),
+        vec!["approval".into(), "auth:password".into()],
+        schema(),
+        schema(),
+    )
+    .expect_err("multiple authorization requests");
+    assert_eq!(
+        duplicated_authority.message(),
+        "Action must declare at most one authorization request"
+    );
 }

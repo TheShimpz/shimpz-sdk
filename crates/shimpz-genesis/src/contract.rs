@@ -19,10 +19,12 @@ const HUMAN_REQUEST_CAPABILITIES: [&str; 11] = [
     "input:select",
     "input:choice",
     "input:choices",
-    "auth:reauth",
-    "auth:second-factor",
-    "auth:phishing-resistant",
+    "auth:password",
+    "auth:totp",
+    "auth:passkey",
 ];
+const AUTHORIZATION_REQUESTS: [&str; 4] =
+    ["approval", "auth:password", "auth:totp", "auth:passkey"];
 
 /// One reviewed Action in the generated machine contract.
 #[derive(Clone, Debug, Serialize, PartialEq)]
@@ -173,7 +175,7 @@ fn validate_action(
     {
         return Err(ContractError::new("Action integrations are invalid"));
     }
-    if human_requests.len() > HUMAN_REQUEST_CAPABILITIES.len() {
+    if human_requests.len() > 8 {
         return Err(ContractError::new(
             "Action declares too many human requests",
         ));
@@ -183,6 +185,16 @@ fn validate_action(
         !HUMAN_REQUEST_CAPABILITIES.contains(&request.as_str()) || !unique_requests.insert(request)
     }) {
         return Err(ContractError::new("Action human requests are invalid"));
+    }
+    if human_requests
+        .iter()
+        .filter(|request| AUTHORIZATION_REQUESTS.contains(&request.as_str()))
+        .count()
+        > 1
+    {
+        return Err(ContractError::new(
+            "Action must declare at most one authorization request",
+        ));
     }
     validate_root_schema(input_schema)?;
     validate_root_schema(output_schema)?;

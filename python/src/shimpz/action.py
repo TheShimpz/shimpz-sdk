@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import ParamSpec, TypeVar
 
 _METADATA_ATTRIBUTE = "__shimpz_action__"
+_AUTHORIZATION_REQUESTS = {"approval", "auth:password", "auth:totp", "auth:passkey"}
 
 Params = ParamSpec("Params")
 Result = TypeVar("Result")
@@ -88,12 +89,15 @@ def _validate_human_requests(human_requests: Iterable[str]) -> tuple[str, ...]:
         "input:select",
         "input:choice",
         "input:choices",
-        "auth:reauth",
-        "auth:second-factor",
-        "auth:phishing-resistant",
+        "auth:password",
+        "auth:totp",
+        "auth:passkey",
     }
     if len(capabilities) != len(set(capabilities)) or any(item not in supported for item in capabilities):
         message = "Action human request capability is invalid"
+        raise ValueError(message)
+    if sum(item in _AUTHORIZATION_REQUESTS for item in capabilities) > 1:
+        message = "Action must declare at most one authorization request"
         raise ValueError(message)
     return tuple(sorted(capabilities))
 

@@ -42,12 +42,12 @@ def test_approval_suspends_then_replays_without_exposing_control() -> None:
     context._finish({"published": True})
 
 
-def test_auth_uses_assurance_without_collecting_factor_material() -> None:
-    allowed = ["auth:phishing-resistant"]
+def test_auth_uses_named_mechanism_without_collecting_factor_material() -> None:
+    allowed = ["auth:passkey"]
 
     def authorize(context: Context) -> None:
         context.request_auth(
-            "phishing-resistant",
+            "passkey",
             title="Rotate credentials",
             description="Confirm this sensitive credential rotation.",
         )
@@ -55,7 +55,25 @@ def test_auth_uses_assurance_without_collecting_factor_material() -> None:
     frame = suspend(Context({}, allowed), authorize)
 
     assert set(frame) == {"kind", "ordinal", "fingerprint", "title", "description"}
-    assert frame["kind"] == "auth:phishing-resistant"
+    assert frame["kind"] == "auth:passkey"
+
+
+def test_rejects_a_second_authorization_request_during_replay() -> None:
+    allowed = ["approval", "auth:password"]
+
+    def approve(context: Context) -> None:
+        context.request_approval(title="Delete record", description="Authorize this deletion.")
+
+    frame = suspend(Context({}, allowed), approve)
+    context = Context({}, allowed, [response(frame, True)])
+    approve(context)
+
+    with pytest.raises(ValueError, match="authorization only once"):
+        context.request_auth(
+            "password",
+            title="Delete record",
+            description="Authorize this deletion with a password.",
+        )
 
 
 @pytest.mark.parametrize(

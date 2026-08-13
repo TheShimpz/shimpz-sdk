@@ -46,10 +46,16 @@ def test_rejects_a_string_as_the_integration_collection() -> None:
 
 @pytest.mark.parametrize(
     "human_requests",
-    [["input:unknown"], ["approval", "approval"], ["Approval"]],
+    [
+        ["input:unknown"],
+        ["approval", "approval"],
+        ["approval", "auth:password"],
+        ["auth:totp", "auth:passkey"],
+        ["Approval"],
+    ],
 )
 def test_rejects_invalid_human_requests(human_requests: list[str]) -> None:
-    with pytest.raises(ValueError, match="human request"):
+    with pytest.raises(ValueError, match=r"human request|authorization request"):
         action(human_requests=human_requests)
 
 
