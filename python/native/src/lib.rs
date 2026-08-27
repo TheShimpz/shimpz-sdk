@@ -13,6 +13,7 @@ use shimpz_genesis::{
 struct ActionInput {
     id: String,
     integrations: Vec<String>,
+    stored_inputs: Vec<String>,
     human_requests: Vec<String>,
     input_schema: Value,
     output_schema: Value,
@@ -62,6 +63,7 @@ fn build_contract(manifest_source: &str, actions_json: &str) -> PyResult<String>
             ActionContract::new(
                 input.id,
                 input.integrations,
+                input.stored_inputs,
                 input.human_requests,
                 input.input_schema,
                 input.output_schema,

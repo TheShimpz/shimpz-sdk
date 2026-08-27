@@ -57,11 +57,36 @@ async def run(name: str, *, ctx: Context) -> Result:
     return {"approved": True}
 """
 
+STORED_ACTION = """
+from typing import TypedDict
 
-def create_project(root: Path, source: str = ACTION) -> Path:
+from shimpz import Context, InputRequest, action
+
+
+class Result(TypedDict):
+    accepted: bool
+
+
+@action(stored_inputs=["whatsapp-token"], human_requests=["input:password"])
+async def run(name: str, *, ctx: Context) -> Result:
+    token = ctx.request_input(InputRequest(
+        "password",
+        "WhatsApp token",
+        "Enter the token used by this WhatsApp Action.",
+        "Token",
+        min_length=1,
+        stored_input="whatsapp-token",
+    ))
+    if token == "invalid":
+        ctx.reject_stored_input("whatsapp-token")
+    return {"accepted": True}
+"""
+
+
+def create_project(root: Path, source: str = ACTION, manifest: str = MANIFEST) -> Path:
     root.mkdir()
     write_icon(root)
-    (root / "shimpz.toml").write_text(MANIFEST, encoding="utf-8")
+    (root / "shimpz.toml").write_text(manifest, encoding="utf-8")
     (root / "pyproject.toml").write_text("[project]\nname = 'assistant'\n", encoding="utf-8")
     actions = root / "actions"
     actions.mkdir()
@@ -79,7 +104,7 @@ def test_builds_a_contract_for_the_rust_cli(tmp_path: Path) -> None:
 
 def test_invokes_a_action_from_a_stdin_request(tmp_path: Path) -> None:
     root = create_project(tmp_path / "assistant")
-    request = io.StringIO('{"input":{"name":"Ada"},"integrations":{}}')
+    request = io.StringIO('{"input":{"name":"Ada"},"integrations":{},"stored_inputs":{}}')
 
     result = json.loads(dispatch(["invoke", str(root), "greet"], request))
 
@@ -88,7 +113,9 @@ def test_invokes_a_action_from_a_stdin_request(tmp_path: Path) -> None:
 
 def test_rejects_duplicate_json_keys(tmp_path: Path) -> None:
     root = create_project(tmp_path / "assistant")
-    request = io.StringIO('{"input":{"name":"Ada","name":"Lin"},"integrations":{}}')
+    request = io.StringIO(
+        '{"input":{"name":"Ada","name":"Lin"},"integrations":{},"stored_inputs":{}}'
+    )
 
     with pytest.raises(ValueError, match="request is invalid"):
         dispatch(["invoke", str(root), "greet"], request)
@@ -96,7 +123,7 @@ def test_rejects_duplicate_json_keys(tmp_path: Path) -> None:
 
 def test_returns_a_tagged_request_and_replays_its_response(tmp_path: Path) -> None:
     root = create_project(tmp_path / "assistant", HUMAN_ACTION)
-    invocation = {"input": {"name": "Ada"}, "integrations": {}}
+    invocation = {"input": {"name": "Ada"}, "integrations": {}, "stored_inputs": {}}
 
     suspended = json.loads(dispatch(["invoke", str(root), "greet"], io.StringIO(json.dumps(invocation))))
 
@@ -113,3 +140,36 @@ def test_returns_a_tagged_request_and_replays_its_response(tmp_path: Path) -> No
 
     completed = json.loads(dispatch(["invoke", str(root), "greet"], io.StringIO(json.dumps(invocation))))
     assert completed == {"type": "result", "result": {"approved": True}}
+
+
+def test_reuses_and_explicitly_rejects_one_stored_input(tmp_path: Path) -> None:
+    manifest = (
+        MANIFEST
+        + """
+[stored_inputs.whatsapp-token]
+kind = "password"
+label = "WhatsApp token"
+description = "Token used to call the WhatsApp API."
+"""
+    )
+    root = create_project(tmp_path / "assistant", STORED_ACTION, manifest)
+    invocation = {
+        "input": {"name": "Ada"},
+        "integrations": {},
+        "stored_inputs": {"whatsapp-token": "invalid"},
+    }
+
+    rejected = json.loads(dispatch(["invoke", str(root), "greet"], io.StringIO(json.dumps(invocation))))
+
+    assert rejected == {
+        "type": "stored_input_rejected",
+        "stored_input": "whatsapp-token",
+    }
+
+
+def test_requires_the_current_stored_input_invocation_field(tmp_path: Path) -> None:
+    root = create_project(tmp_path / "assistant")
+    request = io.StringIO('{"input":{"name":"Ada"},"integrations":{}}')
+
+    with pytest.raises(ValueError, match="request is invalid"):
+        dispatch(["invoke", str(root), "greet"], request)

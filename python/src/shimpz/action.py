@@ -20,17 +20,23 @@ class ActionMetadata:
     """Immutable author intent attached to an Action body."""
 
     integrations: tuple[str, ...]
+    stored_inputs: tuple[str, ...]
     human_requests: tuple[str, ...]
 
 
 def action(
     *,
     integrations: Iterable[str] = (),
+    stored_inputs: Iterable[str] = (),
     human_requests: Iterable[str] = (),
 ) -> Callable[[ActionBody], ActionBody]:
     """Declare an async ``run`` function as the Action in its Python file."""
     integration_ids = _validate_integrations(integrations)
+    stored_input_ids = _validate_stored_inputs(stored_inputs)
     request_capabilities = _validate_human_requests(human_requests)
+    if stored_input_ids and "input:password" not in request_capabilities:
+        message = "Action Stored Input requires input:password"
+        raise ValueError(message)
 
     def decorate(body: ActionBody) -> ActionBody:
         if body.__name__ != "run":
@@ -47,6 +53,7 @@ def action(
             _METADATA_ATTRIBUTE,
             ActionMetadata(
                 integrations=integration_ids,
+                stored_inputs=stored_input_ids,
                 human_requests=request_capabilities,
             ),
         )
@@ -102,6 +109,17 @@ def _validate_human_requests(human_requests: Iterable[str]) -> tuple[str, ...]:
     return tuple(sorted(capabilities))
 
 
+def _validate_stored_inputs(stored_inputs: Iterable[str]) -> tuple[str, ...]:
+    if isinstance(stored_inputs, str):
+        message = "stored_inputs must be an iterable of Stored Input ids"
+        raise TypeError(message)
+    stored_input_ids = tuple(stored_inputs)
+    if len(stored_input_ids) > 1 or not all(_valid_id(stored_input_id) for stored_input_id in stored_input_ids):
+        message = "Action Stored Input declaration is invalid"
+        raise ValueError(message)
+    return stored_input_ids
+
+
 def _valid_id(value: object) -> bool:
     return (
         isinstance(value, str)
@@ -113,4 +131,5 @@ def _valid_id(value: object) -> bool:
             for character in value
         )
         and not value.endswith("-")
+        and "--" not in value
     )

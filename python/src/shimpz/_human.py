@@ -17,18 +17,42 @@ class HumanRequestSuspension(Exception):
         self.request = request
 
 
+class StoredInputRejection(Exception):
+    """Private control signal rejecting one exact resolved Stored Input."""
+
+    def __init__(self, stored_input: str) -> None:
+        super().__init__("Action rejected a Stored Input")
+        self.stored_input = stored_input
+
+
 class HumanRequestRuntime:
     """Match one Action execution against its Team-admitted response transcript."""
 
-    __slots__ = ("_allowed", "_authorization_requested", "_index", "_responses", "_secret", "_token_observed")
+    __slots__ = (
+        "_allowed",
+        "_authorization_requested",
+        "_index",
+        "_resolved_stored_inputs",
+        "_responses",
+        "_secret",
+        "_stored_inputs",
+        "_token_observed",
+    )
 
-    def __init__(self, allowed: Sequence[str], responses: Sequence[Mapping[str, object]]) -> None:
+    def __init__(
+        self,
+        allowed: Sequence[str],
+        responses: Sequence[Mapping[str, object]],
+        stored_inputs: Mapping[str, str] | None = None,
+    ) -> None:
         if len(responses) > MAX_REQUESTS:
             raise ValueError("Action human response transcript is invalid")
         self._allowed = frozenset(allowed)
         self._authorization_requested = False
         self._responses = tuple(dict(item) for item in responses)
         self._index = 0
+        self._stored_inputs = dict(stored_inputs or {})
+        self._resolved_stored_inputs: set[str] = set()
         self._secret: str | None = None
         self._token_observed = False
 
@@ -38,12 +62,7 @@ class HumanRequestRuntime:
 
     def resolve(self, kind: str, descriptor: dict[str, object]) -> object:
         """Return one matching admitted response or suspend with its canonical request."""
-        if kind not in self._allowed:
-            raise ValueError("Action human request capability is undeclared")
-        if self._token_observed:
-            raise ValueError("Action cannot request human input after observing an Integration token")
-        if self._secret is not None:
-            raise ValueError("Action password input must be its final human request")
+        self._validate_request_phase(kind)
         if kind == "approval" or kind.startswith("auth:"):
             if self._authorization_requested:
                 raise ValueError("Action can request authorization only once")
@@ -61,10 +80,40 @@ class HumanRequestRuntime:
         _validate_value(kind, descriptor, value)
         self._index += 1
         if kind == "input:password":
+            self._observe_secret(value)
+        return value
+
+    def resolve_stored_input(self, stored_input: str, descriptor: dict[str, object]) -> str:
+        """Reuse one injected value or resolve its exact password request."""
+        self._validate_request_phase("input:password")
+        if stored_input in self._stored_inputs:
+            value = self._stored_inputs[stored_input]
+            self._observe_secret(value)
+        else:
+            value = self.resolve("input:password", descriptor)
             if not isinstance(value, str):
                 raise ValueError("Action human input response is invalid")
-            self._secret = value
+        self._resolved_stored_inputs.add(stored_input)
         return value
+
+    def reject_stored_input(self, stored_input: str) -> None:
+        """Terminate with an exact rejection only after resolving that slot."""
+        if stored_input not in self._resolved_stored_inputs:
+            raise ValueError("Action can reject only a resolved Stored Input")
+        raise StoredInputRejection(stored_input)
+
+    def _validate_request_phase(self, kind: str) -> None:
+        if kind not in self._allowed:
+            raise ValueError("Action human request capability is undeclared")
+        if self._token_observed:
+            raise ValueError("Action cannot request human input after observing an Integration token")
+        if self._secret is not None:
+            raise ValueError("Action password input must be its final human request")
+
+    def _observe_secret(self, value: object) -> None:
+        if not isinstance(value, str):
+            raise ValueError("Action human input response is invalid")
+        self._secret = value
 
     def finish(self, result: object) -> None:
         """Reject an unused response or exact password echo in the Action result."""

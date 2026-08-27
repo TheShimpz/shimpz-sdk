@@ -32,3 +32,4 @@ class InputRequest:
     options: tuple[InputOption, ...] = ()
     min_selections: int = 0
     max_selections: int | None = None
+    stored_input: str | None = None

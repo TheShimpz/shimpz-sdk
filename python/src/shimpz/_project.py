@@ -26,6 +26,7 @@ class ActionDefinition:
 
     id: str
     integrations: tuple[str, ...]
+    stored_inputs: tuple[str, ...]
     human_requests: tuple[str, ...]
     input_schema: JsonSchema
     output_schema: JsonSchema
@@ -36,6 +37,7 @@ class ActionDefinition:
         return {
             "id": self.id,
             "integrations": list(self.integrations),
+            "stored_inputs": list(self.stored_inputs),
             "human_requests": list(self.human_requests),
             "input_schema": self.input_schema,
             "output_schema": self.output_schema,
@@ -145,6 +147,7 @@ def _load_action(path: Path, project_root: Path) -> ActionDefinition:
         return ActionDefinition(
             id=path.stem.replace("_", "-"),
             integrations=metadata.integrations,
+            stored_inputs=metadata.stored_inputs,
             human_requests=metadata.human_requests,
             input_schema=input_schema,
             output_schema=output_schema,

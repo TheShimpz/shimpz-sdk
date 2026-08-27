@@ -1,36 +1,18 @@
-use std::collections::{BTreeSet, HashSet};
-
 use serde::Serialize;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
-use crate::schema::validate_root_schema;
-use crate::validation::valid_id;
+use crate::contract_validation::{validate_action, validate_catalog};
 use crate::{AssistantManifest, ContractError, SPEC_VERSION};
 
 const MAX_CONTRACT_BYTES: usize = 512 * 1024;
-const MAX_SCHEMA_BYTES: usize = 128 * 1024;
-const HUMAN_REQUEST_CAPABILITIES: [&str; 11] = [
-    "approval",
-    "input:text",
-    "input:textarea",
-    "input:password",
-    "input:phone",
-    "input:select",
-    "input:choice",
-    "input:choices",
-    "auth:password",
-    "auth:totp",
-    "auth:passkey",
-];
-const AUTHORIZATION_REQUESTS: [&str; 4] =
-    ["approval", "auth:password", "auth:totp", "auth:passkey"];
 
 /// One reviewed Action in the generated machine contract.
 #[derive(Clone, Debug, Serialize, PartialEq)]
 pub struct ActionContract {
     id: String,
     integrations: Vec<String>,
+    stored_inputs: Vec<String>,
     human_requests: Vec<String>,
     input_schema: Value,
     output_schema: Value,
@@ -46,6 +28,7 @@ impl ActionContract {
     pub fn new(
         id: impl Into<String>,
         integrations: Vec<String>,
+        stored_inputs: Vec<String>,
         mut human_requests: Vec<String>,
         input_schema: Value,
         output_schema: Value,
@@ -54,6 +37,7 @@ impl ActionContract {
         validate_action(
             &id,
             &integrations,
+            &stored_inputs,
             &human_requests,
             &input_schema,
             &output_schema,
@@ -62,6 +46,7 @@ impl ActionContract {
         Ok(Self {
             id,
             integrations,
+            stored_inputs,
             human_requests,
             input_schema,
             output_schema,
@@ -78,6 +63,12 @@ impl ActionContract {
     #[must_use]
     pub fn integrations(&self) -> &[String] {
         &self.integrations
+    }
+
+    /// Return the Stored Input ids available to this Action.
+    #[must_use]
+    pub fn stored_inputs(&self) -> &[String] {
+        &self.stored_inputs
     }
 
     /// Return the reviewed human-request capabilities.
@@ -153,94 +144,4 @@ impl AssistantContract {
     pub fn actions(&self) -> &[ActionContract] {
         &self.actions
     }
-}
-
-fn validate_action(
-    id: &str,
-    integrations: &[String],
-    human_requests: &[String],
-    input_schema: &Value,
-    output_schema: &Value,
-) -> Result<(), ContractError> {
-    if !valid_id(id) {
-        return Err(ContractError::new("Action id is invalid"));
-    }
-    if integrations.len() > 4 {
-        return Err(ContractError::new("Action declares too many Integrations"));
-    }
-    let mut unique = HashSet::new();
-    if integrations
-        .iter()
-        .any(|integration| !valid_id(integration) || !unique.insert(integration))
-    {
-        return Err(ContractError::new("Action integrations are invalid"));
-    }
-    if human_requests.len() > 8 {
-        return Err(ContractError::new(
-            "Action declares too many human requests",
-        ));
-    }
-    let mut unique_requests = HashSet::new();
-    if human_requests.iter().any(|request| {
-        !HUMAN_REQUEST_CAPABILITIES.contains(&request.as_str()) || !unique_requests.insert(request)
-    }) {
-        return Err(ContractError::new("Action human requests are invalid"));
-    }
-    if human_requests
-        .iter()
-        .filter(|request| AUTHORIZATION_REQUESTS.contains(&request.as_str()))
-        .count()
-        > 1
-    {
-        return Err(ContractError::new(
-            "Action must declare at most one authorization request",
-        ));
-    }
-    validate_root_schema(input_schema)?;
-    validate_root_schema(output_schema)?;
-    schema_within_limit(input_schema)?;
-    schema_within_limit(output_schema)?;
-    Ok(())
-}
-
-fn schema_within_limit(schema: &Value) -> Result<(), ContractError> {
-    let encoded = serde_json::to_vec(schema)
-        .map_err(|_| ContractError::new("Action schema cannot be serialized"))?;
-    if encoded.len() > MAX_SCHEMA_BYTES {
-        return Err(ContractError::new("Action schema is too large"));
-    }
-    Ok(())
-}
-
-fn validate_catalog(
-    manifest: &AssistantManifest,
-    actions: &[ActionContract],
-) -> Result<(), ContractError> {
-    let mut ids = HashSet::new();
-    let mut used_integrations = BTreeSet::new();
-    for action in actions {
-        if !ids.insert(action.id()) {
-            return Err(ContractError::new("Action ids must be unique"));
-        }
-        for integration in action.integrations() {
-            if !manifest.integrations.contains_key(integration) {
-                return Err(ContractError::new(
-                    "Action references an undeclared Integration",
-                ));
-            }
-            used_integrations.insert(integration.as_str());
-        }
-    }
-    if manifest
-        .integrations
-        .keys()
-        .map(String::as_str)
-        .collect::<BTreeSet<_>>()
-        != used_integrations
-    {
-        return Err(ContractError::new(
-            "every declared Integration must be used by an Action",
-        ));
-    }
-    Ok(())
 }

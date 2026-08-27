@@ -62,15 +62,30 @@ class Integrations:
 class Context:
     """Trusted integrations and attributable human requests for one invocation."""
 
-    __slots__ = ("_human", "integrations")
+    __slots__ = ("_human", "_stored_input_ids", "integrations")
 
     def __init__(
         self,
         integration_tokens: Mapping[str, str],
         human_requests: Sequence[str] = (),
         responses: Sequence[Mapping[str, object]] = (),
+        *,
+        stored_input_ids: Sequence[str] = (),
+        stored_inputs: Mapping[str, str] | None = None,
     ) -> None:
-        self._human = HumanRequestRuntime(human_requests, responses)
+        declared = tuple(stored_input_ids)
+        values = dict(stored_inputs or {})
+        if (
+            len(declared) > 1
+            or len(declared) != len(set(declared))
+            or any(not _valid_id(stored_input) for stored_input in declared)
+            or set(values) - set(declared)
+            or len(values) > 1
+            or any(not isinstance(value, str) or not 1 <= len(value) <= 1024 for value in values.values())
+        ):
+            raise ValueError("Action Stored Input invocation is invalid")
+        self._stored_input_ids = frozenset(declared)
+        self._human = HumanRequestRuntime(human_requests, responses, values)
         self.integrations = Integrations(integration_tokens, self._human.observe_token)
 
     def request_approval(self, *, title: str, description: str) -> None:
@@ -91,10 +106,21 @@ class Context:
             raise TypeError("Action input request is invalid")
         capability = f"input:{request.kind}"
         descriptor = _input_descriptor(request)
-        value = self._human.resolve(capability, descriptor)
+        if request.stored_input is None:
+            value = self._human.resolve(capability, descriptor)
+        else:
+            if request.stored_input not in self._stored_input_ids:
+                raise ValueError("Action Stored Input is undeclared")
+            value = self._human.resolve_stored_input(request.stored_input, descriptor)
         if not isinstance(value, str | list):
             raise ValueError("Action human input response is invalid")
         return value
+
+    def reject_stored_input(self, stored_input: str) -> None:
+        """Reject one exact Stored Input resolved by this invocation."""
+        if stored_input not in self._stored_input_ids:
+            raise ValueError("Action Stored Input is undeclared")
+        self._human.reject_stored_input(stored_input)
 
     def _finish(self, result: object) -> None:
         self._human.finish(result)
@@ -151,6 +177,8 @@ def _input_descriptor(request: InputRequest) -> dict[str, object]:
         raise ValueError("Action input kind is invalid")
     if type(request.required) is not bool:
         raise ValueError("Action input required flag is invalid")
+    if request.stored_input is not None and (kind != "password" or not _valid_id(request.stored_input)):
+        raise ValueError("Action Stored Input request is invalid")
     base = {
         **_copy(request.title, request.description),
         "label": _public_text(request.label, 80, "Action input label"),
@@ -175,8 +203,26 @@ def _input_descriptor(request: InputRequest) -> dict[str, object]:
     if not valid_bounds:
         raise ValueError("Action input length bounds are invalid")
     hint = None if request.placeholder is None else _public_text(request.placeholder, 120, "Action input placeholder")
-    return {**base, "placeholder": hint, "min_length": request.min_length, "max_length": maximum}
+    descriptor = {**base, "placeholder": hint, "min_length": request.min_length, "max_length": maximum}
+    if request.stored_input is not None:
+        descriptor["stored_input"] = request.stored_input
+    return descriptor
 
 
 def _ignore_observation() -> None:
     pass
+
+
+def _valid_id(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and 0 < len(value) <= 64
+        and value[0].isascii()
+        and value[0].islower()
+        and all(
+            character.isascii() and (character.islower() or character.isdigit() or character == "-")
+            for character in value
+        )
+        and not value.endswith("-")
+        and "--" not in value
+    )

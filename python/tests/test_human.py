@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 from shimpz import Context, InputOption, InputRequest
-from shimpz._human import HumanRequestSuspension, _fingerprint
+from shimpz._human import HumanRequestSuspension, StoredInputRejection, _fingerprint
 
 VECTORS = json.loads(
     (Path(__file__).parents[2] / "crates/shimpz-genesis/protocol/assistant/v1/human-request-vectors.json").read_text(
@@ -157,6 +157,76 @@ def test_password_is_final_and_cannot_be_returned() -> None:
         context._finish({"connection": "user:provider-secret@host"})
 
 
+def test_stored_input_suspends_when_missing_and_reuses_without_an_ordinal() -> None:
+    request = InputRequest(
+        "password",
+        "WhatsApp token",
+        "Enter the token used by this WhatsApp Action.",
+        "Token",
+        min_length=1,
+        stored_input="whatsapp-token",
+    )
+
+    def collect(context: Context):
+        return context.request_input(request)
+
+    missing = Context(
+        {},
+        ["input:password"],
+        stored_input_ids=["whatsapp-token"],
+    )
+    frame = suspend(missing, collect)
+    assert frame["stored_input"] == "whatsapp-token"
+    assert frame["ordinal"] == 0
+
+    submitted = Context(
+        {},
+        ["input:password"],
+        [response(frame, "new-provider-secret")],
+        stored_input_ids=["whatsapp-token"],
+    )
+    assert collect(submitted) == "new-provider-secret"
+    with pytest.raises(StoredInputRejection):
+        submitted.reject_stored_input("whatsapp-token")
+
+    reused = Context(
+        {},
+        ["input:password", "approval"],
+        stored_input_ids=["whatsapp-token"],
+        stored_inputs={"whatsapp-token": "provider-secret"},
+    )
+    assert collect(reused) == "provider-secret"
+    with pytest.raises(ValueError, match="final human request"):
+        reused.request_approval(title="Continue", description="Continue the operation.")
+    with pytest.raises(ValueError, match="exposes"):
+        reused._finish({"token": "provider-secret"})
+
+
+def test_rejects_only_the_exact_resolved_stored_input() -> None:
+    request = InputRequest(
+        "password",
+        "WhatsApp token",
+        "Enter the token used by this WhatsApp Action.",
+        "Token",
+        stored_input="whatsapp-token",
+    )
+    context = Context(
+        {},
+        ["input:password"],
+        stored_input_ids=["whatsapp-token"],
+        stored_inputs={"whatsapp-token": "provider-secret"},
+    )
+    with pytest.raises(ValueError, match="resolved"):
+        context.reject_stored_input("whatsapp-token")
+    assert context.request_input(request) == "provider-secret"
+    with pytest.raises(StoredInputRejection) as captured:
+        context.reject_stored_input("whatsapp-token")
+    assert captured.value.stored_input == "whatsapp-token"
+
+    with pytest.raises(ValueError, match="undeclared"):
+        context.reject_stored_input("other-token")
+
+
 def test_rejects_unused_or_invalid_responses() -> None:
     unused = {
         "kind": "approval",
@@ -227,10 +297,13 @@ def test_matches_published_request_vectors(case: dict[str, object]) -> None:
             options=options,
             min_selections=request.get("min_selections", 0),
             max_selections=request.get("max_selections"),
+            stored_input=request.get("stored_input"),
         )
         return context.request_input(value)
 
-    context = Context({}, [request["kind"]])
+    stored_input = request.get("stored_input")
+    stored_input_ids = [stored_input] if case["valid"] and isinstance(stored_input, str) else []
+    context = Context({}, [request["kind"]], stored_input_ids=stored_input_ids)
     if case["valid"]:
         with pytest.raises(HumanRequestSuspension):
             issue(context)

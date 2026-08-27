@@ -8,10 +8,11 @@ import inspect
 import json
 import sys
 from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any
 
 from . import _native
-from ._human import HumanRequestSuspension
+from ._human import HumanRequestSuspension, StoredInputRejection
 from ._project import ActionDefinition, AssistantProject
 from .context import Context
 
@@ -22,22 +23,42 @@ class ActionExecutionError(RuntimeError):
     """An Action failed without exposing its input or integration secrets."""
 
 
+@dataclass(frozen=True, slots=True)
+class ActionInvocation:
+    """One private, bounded invocation passed to an Action process."""
+
+    inputs: Mapping[str, object]
+    integrations: Mapping[str, str]
+    stored_inputs: Mapping[str, str]
+    responses: tuple[Mapping[str, object], ...] = ()
+
+
 async def invoke_action(
     project: AssistantProject,
     action_id: str,
-    inputs: Mapping[str, object],
-    integration_tokens: Mapping[str, str] | None = None,
-    responses: tuple[Mapping[str, object], ...] = (),
+    invocation: ActionInvocation,
 ) -> object:
     """Validate and invoke one discovered Action."""
     definition = _find_action(project, action_id)
-    tokens = dict(integration_tokens or {})
+    if not isinstance(invocation, ActionInvocation):
+        raise TypeError("Action invocation is invalid")
+    tokens = dict(invocation.integrations)
     if set(tokens) != set(definition.integrations):
         message = "Action integrations do not match its declaration"
         raise ValueError(message)
-    input_value = dict(inputs)
+    stored_values = dict(invocation.stored_inputs)
+    if set(stored_values) - set(definition.stored_inputs):
+        message = "Action Stored Inputs do not match its declaration"
+        raise ValueError(message)
+    input_value = dict(invocation.inputs)
     _validate_value(definition.input_schema, input_value, "Action input")
-    context = Context(tokens, definition.human_requests, responses)
+    context = Context(
+        tokens,
+        definition.human_requests,
+        invocation.responses,
+        stored_input_ids=definition.stored_inputs,
+        stored_inputs=stored_values,
+    )
     arguments = dict(input_value)
     if "ctx" in inspect.signature(definition.body).parameters:
         arguments["ctx"] = context
@@ -47,7 +68,7 @@ async def invoke_action(
         except (SystemExit, KeyboardInterrupt) as error:
             result = error
     if isinstance(result, BaseException):
-        if isinstance(result, HumanRequestSuspension):
+        if isinstance(result, HumanRequestSuspension | StoredInputRejection):
             raise result
         message = "Action execution failed"
         raise ActionExecutionError(message) from None

@@ -22,6 +22,11 @@ allowed_hosts = ["api.cloudflare.com"]
 
 [integrations.cloudflare]
 scopes = ["dns.read", "offline_access"]
+
+[stored_inputs.api-token]
+kind = "password"
+label = "API token"
+description = "Token used to call the provider."
 "#;
 
 const ID_VECTORS: &str = include_str!("../protocol/assistant/v1/manifest-id-vectors.json");
@@ -57,6 +62,13 @@ fn parses_a_complete_manifest() {
     assert_eq!(manifest.id(), "shimpz-cloudflare");
     assert_eq!(manifest.version().to_string(), "0.1.0");
     assert_eq!(manifest.integrations()["cloudflare"].scopes().len(), 2);
+    let stored_input = &manifest.stored_inputs()["api-token"];
+    assert_eq!(stored_input.kind(), "password");
+    assert_eq!(stored_input.label(), "API token");
+    assert_eq!(
+        stored_input.description(),
+        "Token used to call the provider."
+    );
 }
 
 #[test]
@@ -174,6 +186,21 @@ fn rejects_invalid_integration_intent() {
         "[integrations.cloudflare]\nextra = true",
     ] {
         let source = VALID.replace("[integrations.cloudflare]", replacement);
+        assert!(AssistantManifest::parse(&source).is_err());
+    }
+}
+
+#[test]
+fn rejects_invalid_stored_input_intent() {
+    for replacement in [
+        "[stored_inputs.ApiToken]",
+        "[stored_inputs.api-token]\nkind = \"text\"",
+        "[stored_inputs.api-token]\nextra = true",
+    ] {
+        let source = VALID.replace(
+            "[stored_inputs.api-token]\nkind = \"password\"",
+            replacement,
+        );
         assert!(AssistantManifest::parse(&source).is_err());
     }
 }

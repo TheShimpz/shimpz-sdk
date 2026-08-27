@@ -8,10 +8,10 @@ import sys
 from pathlib import Path
 from typing import Any, TextIO
 
-from ._human import HumanRequestSuspension
+from ._human import HumanRequestSuspension, StoredInputRejection
 from ._json import strict_loads
 from ._project import AssistantProject
-from ._runtime import ActionExecutionError, invoke_action
+from ._runtime import ActionExecutionError, ActionInvocation, invoke_action
 
 _MAX_REQUEST_BYTES = 512 * 1_024
 
@@ -45,13 +45,18 @@ def dispatch(arguments: list[str], source: TextIO) -> str:
                 invoke_action(
                     project,
                     arguments[2],
-                    payload["input"],
-                    payload["integrations"],
-                    tuple(payload.get("responses", ())),
+                    ActionInvocation(
+                        inputs=payload["input"],
+                        integrations=payload["integrations"],
+                        stored_inputs=payload["stored_inputs"],
+                        responses=tuple(payload.get("responses", ())),
+                    ),
                 )
             )
         except HumanRequestSuspension as suspension:
             return _json({"type": "request", "request": suspension.request})
+        except StoredInputRejection as rejection:
+            return _json({"type": "stored_input_rejected", "stored_input": rejection.stored_input})
         return _json({"type": "result", "result": result})
     message = "private bridge command is invalid"
     raise ValueError(message)
@@ -69,10 +74,15 @@ def _request(source: TextIO) -> dict[str, Any]:
         raise ValueError(message) from error
     valid = (
         isinstance(payload, dict)
-        and set(payload) in ({"input", "integrations"}, {"input", "integrations", "responses"})
+        and set(payload)
+        in (
+            {"input", "integrations", "stored_inputs"},
+            {"input", "integrations", "stored_inputs", "responses"},
+        )
         and isinstance(payload["input"], dict)
         and isinstance(payload["integrations"], dict)
         and all(isinstance(key, str) and isinstance(value, str) for key, value in payload["integrations"].items())
+        and _valid_stored_inputs(payload["stored_inputs"])
         and (
             "responses" not in payload
             or (
@@ -86,6 +96,17 @@ def _request(source: TextIO) -> dict[str, Any]:
         message = "private bridge request is invalid"
         raise ValueError(message)
     return payload
+
+
+def _valid_stored_inputs(value: object) -> bool:
+    return (
+        isinstance(value, dict)
+        and len(value) <= 1
+        and all(
+            isinstance(key, str) and isinstance(item, str) and 1 <= len(item) <= 1024
+            for key, item in value.items()
+        )
+    )
 
 
 def _json(value: object) -> str:

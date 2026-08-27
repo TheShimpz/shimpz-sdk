@@ -40,6 +40,7 @@ def test_builds_contract_through_genesis() -> None:
         {
             "id": "example",
             "integrations": [],
+            "stored_inputs": [],
             "human_requests": [],
             "input_schema": SCHEMA,
             "output_schema": SCHEMA,

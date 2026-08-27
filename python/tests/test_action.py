@@ -6,7 +6,11 @@ from shimpz.action import get_action_metadata
 
 
 def test_declares_an_async_run_without_a_registry() -> None:
-    @action(integrations=["cloudflare"], human_requests=["input:text", "approval"])
+    @action(
+        integrations=["cloudflare"],
+        stored_inputs=["api-token"],
+        human_requests=["input:text", "input:password", "approval"],
+    )
     async def run(zone: str) -> str:
         return zone
 
@@ -14,7 +18,8 @@ def test_declares_an_async_run_without_a_registry() -> None:
 
     assert metadata is not None
     assert metadata.integrations == ("cloudflare",)
-    assert metadata.human_requests == ("approval", "input:text")
+    assert metadata.stored_inputs == ("api-token",)
+    assert metadata.human_requests == ("approval", "input:password", "input:text")
 
 
 def test_rejects_a_synchronous_action() -> None:
@@ -62,3 +67,19 @@ def test_rejects_invalid_human_requests(human_requests: list[str]) -> None:
 def test_rejects_a_string_as_the_human_request_collection() -> None:
     with pytest.raises(TypeError, match="iterable"):
         action(human_requests="approval")
+
+
+@pytest.mark.parametrize("stored_inputs", [["ApiToken"], ["api-token-"], ["one", "two"]])
+def test_rejects_invalid_stored_inputs(stored_inputs: list[str]) -> None:
+    with pytest.raises(ValueError, match="Stored Input"):
+        action(stored_inputs=stored_inputs)
+
+
+def test_rejects_a_string_as_the_stored_input_collection() -> None:
+    with pytest.raises(TypeError, match="iterable"):
+        action(stored_inputs="api-token")
+
+
+def test_requires_the_password_capability_for_a_stored_input() -> None:
+    with pytest.raises(ValueError, match="input:password"):
+        action(stored_inputs=["api-token"])

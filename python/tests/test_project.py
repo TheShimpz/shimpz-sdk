@@ -64,10 +64,12 @@ def test_discovers_one_action_per_python_file(tmp_path: Path) -> None:
     assert set(contract["actions"][0]) == {
         "id",
         "integrations",
+        "stored_inputs",
         "human_requests",
         "input_schema",
         "output_schema",
     }
+    assert contract["actions"][0]["stored_inputs"] == []
     assert contract["actions"][0]["human_requests"] == []
 
 

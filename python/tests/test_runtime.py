@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from _fixtures import write_icon
 from shimpz._project import AssistantProject
-from shimpz._runtime import ActionExecutionError, invoke_action
+from shimpz._runtime import ActionExecutionError, ActionInvocation, invoke_action
 
 MANIFEST = """
 [shimpz]
@@ -60,8 +60,11 @@ def test_invokes_with_validated_inputs_and_redacted_integrations(tmp_path: Path)
         invoke_action(
             project,
             "inspect-dns",
-            {"zone": "example.com"},
-            {"cloudflare": "private-token"},
+            ActionInvocation(
+                inputs={"zone": "example.com"},
+                integrations={"cloudflare": "private-token"},
+                stored_inputs={},
+            ),
         )
     )
 
@@ -73,7 +76,17 @@ def test_rejects_missing_integrations(tmp_path: Path) -> None:
     project = project_at(tmp_path / "assistant")
 
     with pytest.raises(ValueError, match="integrations"):
-        asyncio.run(invoke_action(project, "inspect-dns", {"zone": "example.com"}))
+        asyncio.run(
+            invoke_action(
+                project,
+                "inspect-dns",
+                ActionInvocation(
+                    inputs={"zone": "example.com"},
+                    integrations={},
+                    stored_inputs={},
+                ),
+            )
+        )
 
 
 def test_validates_input_before_execution(tmp_path: Path) -> None:
@@ -84,8 +97,11 @@ def test_validates_input_before_execution(tmp_path: Path) -> None:
             invoke_action(
                 project,
                 "inspect-dns",
-                {"zone": 42},
-                {"cloudflare": "private-token"},
+                ActionInvocation(
+                    inputs={"zone": 42},
+                    integrations={"cloudflare": "private-token"},
+                    stored_inputs={},
+                ),
             )
         )
 
@@ -102,8 +118,11 @@ def test_redacts_action_exceptions(tmp_path: Path) -> None:
             invoke_action(
                 project,
                 "inspect-dns",
-                {"zone": "example.com"},
-                {"cloudflare": "private-token"},
+                ActionInvocation(
+                    inputs={"zone": "example.com"},
+                    integrations={"cloudflare": "private-token"},
+                    stored_inputs={},
+                ),
             )
         )
 

@@ -33,6 +33,7 @@ pub(crate) fn validate_manifest(manifest: &AssistantManifest) -> Result<(), Mani
     validate_github(&manifest.shimpz.github)?;
     validate_hosts(&manifest.network.allowed_hosts)?;
     validate_integrations(manifest)?;
+    validate_stored_inputs(manifest)?;
     Ok(())
 }
 
@@ -162,6 +163,23 @@ fn validate_integrations(manifest: &AssistantManifest) -> Result<(), ManifestErr
                 .all(|scope| valid_scope(scope) && unique.insert(scope)),
             "integration scopes are invalid",
         )?;
+    }
+    Ok(())
+}
+
+fn validate_stored_inputs(manifest: &AssistantManifest) -> Result<(), ManifestError> {
+    require(
+        manifest.stored_inputs.len() <= 8,
+        "stored_inputs are invalid",
+    )?;
+    for (stored_input_id, stored_input) in &manifest.stored_inputs {
+        require(valid_id(stored_input_id), "stored_inputs are invalid")?;
+        require(
+            stored_input.kind == "password",
+            "stored input kind is invalid",
+        )?;
+        validate_line(&stored_input.label, 80, "stored input label")?;
+        validate_line(&stored_input.description, 500, "stored input description")?;
     }
     Ok(())
 }

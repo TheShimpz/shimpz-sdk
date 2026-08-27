@@ -22,6 +22,38 @@ impl IntegrationIntent {
     }
 }
 
+/// One Team-custodied persistent Action input declared by an Assistant.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct StoredInputIntent {
+    /// Closed input presentation kind.
+    pub(crate) kind: String,
+    /// Public label shown when the value is missing.
+    pub(crate) label: String,
+    /// Public explanation shown when the value is missing.
+    pub(crate) description: String,
+}
+
+impl StoredInputIntent {
+    /// Return the closed input presentation kind.
+    #[must_use]
+    pub fn kind(&self) -> &str {
+        &self.kind
+    }
+
+    /// Return the public input label.
+    #[must_use]
+    pub fn label(&self) -> &str {
+        &self.label
+    }
+
+    /// Return the public input description.
+    #[must_use]
+    pub fn description(&self) -> &str {
+        &self.description
+    }
+}
+
 /// The closed author-owned representation of `shimpz.toml`.
 ///
 /// External code cannot bypass validation by constructing this type by hand:
@@ -33,6 +65,7 @@ impl IntegrationIntent {
 ///     shimpz: unreachable!(),
 ///     network: unreachable!(),
 ///     integrations: BTreeMap::new(),
+///     stored_inputs: BTreeMap::new(),
 /// };
 /// ```
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
@@ -43,6 +76,9 @@ pub struct AssistantManifest {
     /// Integration intents keyed by provider id.
     #[serde(default)]
     pub(crate) integrations: BTreeMap<String, IntegrationIntent>,
+    /// Persistent Action input declarations keyed by id.
+    #[serde(default)]
+    pub(crate) stored_inputs: BTreeMap<String, StoredInputIntent>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
@@ -109,5 +145,11 @@ impl AssistantManifest {
     #[must_use]
     pub const fn integrations(&self) -> &BTreeMap<String, IntegrationIntent> {
         &self.integrations
+    }
+
+    /// Return persistent Action inputs keyed by declaration id.
+    #[must_use]
+    pub const fn stored_inputs(&self) -> &BTreeMap<String, StoredInputIntent> {
+        &self.stored_inputs
     }
 }

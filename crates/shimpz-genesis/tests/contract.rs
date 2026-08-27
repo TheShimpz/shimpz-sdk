@@ -36,6 +36,26 @@ genesis = "Manage DNS safely."
 allowed_hosts = ["api.cloudflare.com"]
 "#;
 
+const STORED_INPUT_MANIFEST: &str = r#"
+[shimpz]
+spec = 1
+id = "whatsapp"
+version = "0.1.0"
+name = "WhatsApp"
+summary = "Send WhatsApp messages."
+creators = ["@roxygens"]
+github = "https://github.com/TheShimpz/assistant-whatsapp"
+genesis = "Send messages safely."
+
+[network]
+allowed_hosts = ["graph.facebook.com"]
+
+[stored_inputs.whatsapp-token]
+kind = "password"
+label = "WhatsApp token"
+description = "Token used to call the WhatsApp API."
+"#;
+
 fn schema() -> Value {
     json!({
         "type": "object",
@@ -46,7 +66,8 @@ fn schema() -> Value {
 }
 
 fn action(id: &str, integrations: Vec<String>) -> ActionContract {
-    ActionContract::new(id, integrations, Vec::new(), schema(), schema()).expect("valid Action")
+    ActionContract::new(id, integrations, Vec::new(), Vec::new(), schema(), schema())
+        .expect("valid Action")
 }
 
 #[test]
@@ -67,12 +88,14 @@ fn sorts_and_serializes_actions_deterministically() {
         concat!(
             "{\"version\":1,\"actions\":[",
             "{\"id\":\"create-dns\",\"integrations\":[],",
+            "\"stored_inputs\":[],",
             "\"human_requests\":[],",
             "\"input_schema\":{\"additionalProperties\":false,\"properties\":{},",
             "\"required\":[],\"type\":\"object\"},",
             "\"output_schema\":{\"additionalProperties\":false,\"properties\":{},",
             "\"required\":[],\"type\":\"object\"}},",
             "{\"id\":\"list-zones\",\"integrations\":[\"cloudflare\"],",
+            "\"stored_inputs\":[],",
             "\"human_requests\":[],",
             "\"input_schema\":{\"additionalProperties\":false,\"properties\":{},",
             "\"required\":[],\"type\":\"object\"},",
@@ -118,13 +141,77 @@ fn rejects_undeclared_or_unused_integrations() {
 }
 
 #[test]
+fn admits_only_one_declared_stored_input_per_action() {
+    let manifest = AssistantManifest::parse(STORED_INPUT_MANIFEST).expect("valid manifest");
+    let action = ActionContract::new(
+        "send-message",
+        Vec::new(),
+        vec!["whatsapp-token".into()],
+        vec!["input:password".into()],
+        schema(),
+        schema(),
+    )
+    .expect("declared Stored Input");
+    let contract = AssistantContract::build(&manifest, vec![action]).expect("valid contract");
+    assert_eq!(contract.actions()[0].stored_inputs(), ["whatsapp-token"]);
+
+    let unknown = ActionContract::new(
+        "send-message",
+        Vec::new(),
+        vec!["other-token".into()],
+        vec!["input:password".into()],
+        schema(),
+        schema(),
+    )
+    .expect("valid Action shape");
+    let error =
+        AssistantContract::build(&manifest, vec![unknown]).expect_err("undeclared Stored Input");
+    assert_eq!(
+        error.message(),
+        "Action references an undeclared Stored Input"
+    );
+
+    let too_many = ActionContract::new(
+        "send-message",
+        Vec::new(),
+        vec!["first".into(), "second".into()],
+        vec!["input:password".into()],
+        schema(),
+        schema(),
+    )
+    .expect_err("too many Stored Inputs");
+    assert_eq!(too_many.message(), "Action Stored Inputs are invalid");
+
+    let missing_request = ActionContract::new(
+        "send-message",
+        Vec::new(),
+        vec!["whatsapp-token".into()],
+        Vec::new(),
+        schema(),
+        schema(),
+    )
+    .expect_err("missing password request");
+    assert_eq!(
+        missing_request.message(),
+        "Action Stored Input requires password input"
+    );
+}
+
+#[test]
 fn rejects_open_or_non_object_schemas() {
     for invalid in [
         json!({"type": "string"}),
         json!({"type": "object", "properties": {}, "required": []}),
     ] {
-        let error = ActionContract::new("list-zones", Vec::new(), Vec::new(), invalid, schema())
-            .expect_err("schema");
+        let error = ActionContract::new(
+            "list-zones",
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            invalid,
+            schema(),
+        )
+        .expect_err("schema");
         assert!(error.message().starts_with("Action schema"));
     }
 }
@@ -142,8 +229,15 @@ fn rejects_unsupported_nested_schema_keywords() {
         "required": ["zone"],
         "additionalProperties": false
     });
-    let error = ActionContract::new("list-zones", Vec::new(), Vec::new(), invalid, schema())
-        .expect_err("keyword");
+    let error = ActionContract::new(
+        "list-zones",
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+        invalid,
+        schema(),
+    )
+    .expect_err("keyword");
 
     assert_eq!(error.message(), "Action schema keyword is unsupported");
 }
@@ -173,8 +267,15 @@ fn accepts_closed_nested_objects_and_arrays() {
         "additionalProperties": false
     });
 
-    ActionContract::new("list-zones", Vec::new(), Vec::new(), schema(), nested)
-        .expect("supported schema");
+    ActionContract::new(
+        "list-zones",
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+        schema(),
+        nested,
+    )
+    .expect("supported schema");
 }
 
 #[test]
@@ -182,6 +283,7 @@ fn rejects_more_than_four_integrations_per_action() {
     let error = ActionContract::new(
         "list-zones",
         vec!["a".into(), "b".into(), "c".into(), "d".into(), "e".into()],
+        Vec::new(),
         Vec::new(),
         schema(),
         schema(),
@@ -221,12 +323,26 @@ fn rejects_oversized_and_hyphen_actions() {
         "required": [],
         "properties": properties
     });
-    let size = ActionContract::new("list-zones", Vec::new(), Vec::new(), big, schema())
-        .expect_err("oversized schema");
+    let size = ActionContract::new(
+        "list-zones",
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+        big,
+        schema(),
+    )
+    .expect_err("oversized schema");
     assert_eq!(size.message(), "Action schema is too large");
 
-    let id = ActionContract::new("a--b", Vec::new(), Vec::new(), schema(), schema())
-        .expect_err("double hyphen id");
+    let id = ActionContract::new(
+        "a--b",
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+        schema(),
+        schema(),
+    )
+    .expect_err("double hyphen id");
     assert_eq!(id.message(), "Action id is invalid");
 }
 
@@ -234,6 +350,7 @@ fn rejects_oversized_and_hyphen_actions() {
 fn validates_and_sorts_human_request_capabilities() {
     let action = ActionContract::new(
         "confirm-dns",
+        Vec::new(),
         Vec::new(),
         vec!["input:text".into(), "approval".into()],
         schema(),
@@ -245,6 +362,7 @@ fn validates_and_sorts_human_request_capabilities() {
     let invalid = ActionContract::new(
         "confirm-dns",
         Vec::new(),
+        Vec::new(),
         vec!["input:unknown".into()],
         schema(),
         schema(),
@@ -254,6 +372,7 @@ fn validates_and_sorts_human_request_capabilities() {
 
     let duplicated_authority = ActionContract::new(
         "confirm-dns",
+        Vec::new(),
         Vec::new(),
         vec!["approval".into(), "auth:password".into()],
         schema(),

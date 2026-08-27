@@ -46,4 +46,30 @@ Attribute access (`ctx.integrations.cloudflare`) is a convenience for identifier
 
 Human requests are declared explicitly on `@action`. They must happen before the first Integration token is read. The runtime suspends and deterministically replays the Action after the Team supplies a response; code before a request must therefore be free of external side effects. Password input is for a third-party secret, is always the final human request, and cannot be returned as an Action result. An Action declares and issues at most one authorization request. `request_auth` accepts `password`, `totp`, or `passkey`; the successful ceremony authorizes the exact challenge and authentication material never enters the Action.
 
+Token-only providers use a manifest-declared Stored Input rather than an OAuth Integration. Declare the exact slot
+and request it only when the Action needs it:
+
+```python
+@action(
+    stored_inputs=["whatsapp-token"],
+    human_requests=["input:password"],
+)
+async def run(*, ctx: Context) -> CreatedDns:
+    token = ctx.request_input(
+        InputRequest(
+            kind="password",
+            title="WhatsApp token",
+            description="Enter the token used by this WhatsApp Action.",
+            label="Token",
+            stored_input="whatsapp-token",
+        )
+    )
+    ...
+```
+
+Team asks just in time when the slot is empty and reuses the sealed value later without another prompt. If the
+provider explicitly rejects the value, call `ctx.reject_stored_input("whatsapp-token")`; this terminates the Action
+and lets Team clear only that exact slot. Stored Input values are not available as a Context mapping and must never
+be logged or returned.
+
 The native `_native` module is private and may not be imported by Assistants.
