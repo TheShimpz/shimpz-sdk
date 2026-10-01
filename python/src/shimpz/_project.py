@@ -18,6 +18,7 @@ from . import _native
 from ._catalog import load_catalog
 from ._schema import JsonSchema, compile_action_schemas
 from .action import ActionBody, get_action_metadata
+from .verifier import Effect, Verifier
 
 _ACTION_FILENAME = re.compile(r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)*\.py$")
 
@@ -33,17 +34,23 @@ class ActionDefinition:
     input_schema: JsonSchema
     output_schema: JsonSchema
     body: ActionBody
+    effect: Effect = "mutating"
+    verifier: Verifier | None = None
 
     def contract_input(self) -> dict[str, object]:
         """Return the language-neutral Genesis input."""
-        return {
+        value: dict[str, object] = {
             "id": self.id,
             "integrations": list(self.integrations),
             "stored_inputs": list(self.stored_inputs),
             "human_requests": list(self.human_requests),
             "input_schema": self.input_schema,
             "output_schema": self.output_schema,
+            "effect": self.effect,
         }
+        if self.verifier is not None:
+            value["verifier"] = self.verifier.contract()
+        return value
 
 
 @dataclass(frozen=True, slots=True)
@@ -172,6 +179,8 @@ def _load_action(path: Path, project_root: Path) -> ActionDefinition:
             input_schema=input_schema,
             output_schema=output_schema,
             body=body,
+            effect=metadata.effect,
+            verifier=metadata.verifier,
         )
     finally:
         sys.modules.pop(module_name, None)

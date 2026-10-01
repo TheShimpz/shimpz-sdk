@@ -5,16 +5,22 @@ from .action import action
 from .context import Context
 from .human import InputOption, InputRequest
 from .message import Param, Text, dns_name, domain, identifier, integer, text
+from .verifier import Binding, VerificationOutcome, Verifier, from_input, from_operation_id
 
 __all__ = [
+    "Binding",
     "Context",
     "InputOption",
     "InputRequest",
     "Param",
     "Text",
+    "VerificationOutcome",
+    "Verifier",
     "action",
     "dns_name",
     "domain",
+    "from_input",
+    "from_operation_id",
     "identifier",
     "integer",
     "strict_loads",

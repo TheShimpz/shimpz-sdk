@@ -57,6 +57,7 @@ def test_builds_contract_through_genesis() -> None:
             "integrations": [],
             "stored_inputs": [],
             "human_requests": [],
+            "effect": "read_only",
             "input_schema": SCHEMA,
             "output_schema": SCHEMA,
         }
@@ -76,6 +77,7 @@ def test_refuses_a_catalog_without_the_summary_message() -> None:
             "integrations": [],
             "stored_inputs": [],
             "human_requests": [],
+            "effect": "read_only",
             "input_schema": SCHEMA,
             "output_schema": SCHEMA,
         }
@@ -99,6 +101,7 @@ def test_refuses_a_dense_action_schema_before_publication() -> None:
             "integrations": [],
             "stored_inputs": [],
             "human_requests": [],
+            "effect": "read_only",
             "input_schema": dense,
             "output_schema": SCHEMA,
         }
@@ -118,6 +121,7 @@ def _pattern_actions(pattern: str) -> str:
                 "integrations": [],
                 "stored_inputs": [],
                 "human_requests": [],
+                "effect": "read_only",
                 "input_schema": schema,
                 "output_schema": SCHEMA,
             }

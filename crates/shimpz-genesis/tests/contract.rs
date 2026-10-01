@@ -106,14 +106,14 @@ fn sorts_and_serializes_actions_deterministically() {
             "\"input_schema\":{\"additionalProperties\":false,\"properties\":{},",
             "\"required\":[],\"type\":\"object\"},",
             "\"output_schema\":{\"additionalProperties\":false,\"properties\":{},",
-            "\"required\":[],\"type\":\"object\"}},",
+            "\"required\":[],\"type\":\"object\"},\"effect\":\"mutating\"},",
             "{\"id\":\"list-zones\",\"integrations\":[\"cloudflare\"],",
             "\"stored_inputs\":[],",
             "\"human_requests\":[],",
             "\"input_schema\":{\"additionalProperties\":false,\"properties\":{},",
             "\"required\":[],\"type\":\"object\"},",
             "\"output_schema\":{\"additionalProperties\":false,\"properties\":{},",
-            "\"required\":[],\"type\":\"object\"}}],",
+            "\"required\":[],\"type\":\"object\"},\"effect\":\"mutating\"}],",
             "\"messages\":[{\"id\":\"7d7c8069bf8aba48cbbb7251ea3ac5a2c1a3be4a337c030f1f79311381e541db\",",
             "\"msgid\":\"Manage DNS records.\",\"max_length\":160,\"params\":[]}]}"
         )

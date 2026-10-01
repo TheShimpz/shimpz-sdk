@@ -17,6 +17,9 @@ struct ActionInput {
     human_requests: Vec<String>,
     input_schema: Value,
     output_schema: Value,
+    effect: String,
+    #[serde(default)]
+    verifier: Option<Value>,
 }
 
 #[derive(Deserialize)]
@@ -72,6 +75,7 @@ fn build_contract(
                 input.input_schema,
                 input.output_schema,
             )
+            .and_then(|action| action.with_effect(input.effect, input.verifier))
             .map_err(value_error)
         })
         .collect::<PyResult<Vec<_>>>()?;

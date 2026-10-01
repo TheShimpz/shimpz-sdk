@@ -29,8 +29,8 @@ const CONTRACT_ERROR: &str = "Action contract has too many JSON values";
 /// Root, `type`, `additionalProperties`, `required`, `properties`, the `p`
 /// property schema, its `type`, and its `enum` list.
 const SCHEMA_FRAME_NODES: usize = 8;
-/// The Action object, its id, and its three capability lists.
-const ACTION_FRAME_NODES: usize = 5;
+/// The Action object, its id, its three capability lists, and its effect.
+const ACTION_FRAME_NODES: usize = 6;
 /// The contract object, its version, its Action list, its message list, and the
 /// summary message with its id, msgid, `max_length`, and parameter list.
 const CONTRACT_FRAME_NODES: usize = 9;

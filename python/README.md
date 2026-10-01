@@ -127,4 +127,48 @@ help_url = "https://business.facebook.com/settings/system-users"
 optional query, and no port, credentials, fragment, or dot segment, written exactly as a browser prints it. Team
 shows it as the link to create the key when it asks for the missing value.
 
+## Effects and verification
+
+Every Action is `mutating` unless it declares `effect="read_only"`, a reviewed promise that it publishes, deletes,
+or delivers nothing. Team treats a failed mutating Action as possibly applied, so it never repeats one on its own.
+A mutating Action may name a read-only Action of the same Assistant that reports whether its effect occurred:
+
+```python
+from typing import NotRequired, TypedDict
+
+from shimpz import VerificationOutcome, Verifier, action, from_input, from_operation_id
+
+
+class Record(TypedDict):
+    id: str
+
+
+@action(
+    verifier=Verifier(
+        action="find-record",
+        inputs={"zone": from_input("/zone"), "operation": from_operation_id()},
+        outcome="/outcome",
+        result="/record",
+    ),
+)
+async def run(zone: str, name: str) -> Record: ...
+
+
+# actions/find_record.py
+class Evidence(TypedDict):
+    outcome: VerificationOutcome
+    record: NotRequired[Record]
+
+
+@action(effect="read_only")
+async def run(zone: str, operation: str) -> Evidence: ...
+```
+
+Each binding copies one original input, addressed by an RFC 6901 pointer through required fields, into a verifier
+parameter of exactly the same type, or the original `operation_id` into a plain `str` parameter, and every verifier
+parameter is bound. `outcome` points to a required `VerificationOutcome` field, and `result` points to the recovered
+result, whose type is exactly the verified Action's return type. Report `not_occurred` only for authoritative terminal
+absence; anything uncertain is `inconclusive`. The verifier declares no human request, or only the password request
+of its own Stored Input.
+
 The native `_native` module is private and may not be imported by Assistants.

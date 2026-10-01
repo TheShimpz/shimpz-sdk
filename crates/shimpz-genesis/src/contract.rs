@@ -1,6 +1,7 @@
 use serde::Serialize;
 use serde_json::Value;
 
+use crate::action_effect::{validate_declaration, validate_verifiers};
 use crate::catalog::{sha256_hex, validate_messages};
 use crate::contract_validation::{nodes_within, validate_action, validate_catalog};
 use crate::{AssistantManifest, ContractError, Message, SPEC_VERSION};
@@ -20,10 +21,16 @@ pub struct ActionContract {
     human_requests: Vec<String>,
     input_schema: Value,
     output_schema: Value,
+    effect: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    verifier: Option<Value>,
 }
 
 impl ActionContract {
     /// Construct one Action using its file-derived id.
+    ///
+    /// The Action declares the conservative `mutating` effect until
+    /// [`ActionContract::with_effect`] declares otherwise.
     ///
     /// # Errors
     ///
@@ -55,7 +62,41 @@ impl ActionContract {
             human_requests,
             input_schema,
             output_schema,
+            effect: "mutating".to_owned(),
+            verifier: None,
         })
+    }
+
+    /// Declare the Action's effect class and its optional verifier descriptor.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for an effect other than `read_only` or `mutating`, a
+    /// verifier on a `read_only` Action, or a verifier whose closed shape,
+    /// identifier, bindings, or pointers are invalid. Whether the verifier
+    /// matches the Actions it relates is checked when the contract is built.
+    pub fn with_effect(
+        mut self,
+        effect: impl Into<String>,
+        verifier: Option<Value>,
+    ) -> Result<Self, ContractError> {
+        let effect = effect.into();
+        validate_declaration(&effect, verifier.as_ref())?;
+        self.effect = effect;
+        self.verifier = verifier;
+        Ok(self)
+    }
+
+    /// Return the declared effect class: `read_only` or `mutating`.
+    #[must_use]
+    pub fn effect(&self) -> &str {
+        &self.effect
+    }
+
+    /// Return the declared verifier descriptor, if any.
+    #[must_use]
+    pub const fn verifier(&self) -> Option<&Value> {
+        self.verifier.as_ref()
     }
 
     /// Return the canonical Action id.
@@ -102,8 +143,9 @@ impl AssistantContract {
     /// # Errors
     ///
     /// Returns an error for duplicate Actions, undeclared Integrations, unused
-    /// manifest Integrations, an invalid message catalog, or a contract larger
-    /// than 512 KiB or 32,768 JSON values.
+    /// manifest Integrations, a verifier that does not match the Actions it
+    /// relates, an invalid message catalog, or a contract larger than 512 KiB
+    /// or 32,768 JSON values.
     pub fn build(
         manifest: &AssistantManifest,
         mut actions: Vec<ActionContract>,
@@ -124,6 +166,7 @@ impl AssistantContract {
         };
         let value = serde_json::to_value(&contract)
             .map_err(|_| ContractError::new("Action contract cannot be serialized"))?;
+        validate_verifiers(value["actions"].as_array().map_or(&[], Vec::as_slice))?;
         if !nodes_within(&value, MAX_CONTRACT_NODES) {
             return Err(ContractError::new(
                 "Action contract has too many JSON values",

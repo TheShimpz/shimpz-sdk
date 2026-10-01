@@ -1,5 +1,6 @@
 //! Language-neutral foundation for Shimpz Assistant SDKs.
 
+mod action_effect;
 mod catalog;
 mod contract;
 mod contract_validation;
