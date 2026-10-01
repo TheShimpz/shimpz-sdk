@@ -73,9 +73,10 @@ class AssistantProject:
         return _native.build_contract(self.manifest_source, actions_json, messages_json)
 
 
-def load_messages(root: Path) -> list[dict[str, object]]:
-    """Return the statically extracted English catalog without importing any Creator code."""
-    return _static_source(root.resolve())[2]
+def load_catalog_document(root: Path) -> dict[str, object]:
+    """Return the manifest summary and the statically extracted English catalog without importing Creator code."""
+    manifest_source, _, messages = _static_source(root.resolve())
+    return {"summary": tomllib.loads(manifest_source)["shimpz"]["summary"], "messages": messages}
 
 
 def _static_source(root: Path) -> tuple[str, tuple[Path, ...], list[dict[str, object]]]:

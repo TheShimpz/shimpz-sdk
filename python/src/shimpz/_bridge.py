@@ -10,7 +10,7 @@ from typing import Any, TextIO
 
 from ._human import HumanRequestSuspension, StoredInputRejection
 from ._json import strict_loads
-from ._project import AssistantProject, load_messages
+from ._project import AssistantProject, load_catalog_document
 from ._reference import render_request
 from ._runtime import ActionExecutionError, ActionInvocation, invoke_action
 
@@ -59,6 +59,8 @@ def dispatch(arguments: list[str], source: TextIO) -> str:
         except StoredInputRejection as rejection:
             return _json({"type": "stored_input_rejected", "stored_input": rejection.stored_input})
         return _json({"type": "result", "result": result})
+    if len(arguments) == 2 and arguments[0] == "catalog":
+        return _json(load_catalog_document(Path(arguments[1])))
     if len(arguments) == 2 and arguments[0] == "render":
         return _json(_render(Path(arguments[1]), source))
     message = "private bridge command is invalid"
@@ -72,7 +74,7 @@ def _render(root: Path, source: TextIO) -> dict[str, Any]:
         message = "private bridge request is invalid"
         raise ValueError(message)
     try:
-        return render_request(payload["request"], load_messages(root))
+        return render_request(payload["request"], load_catalog_document(root)["messages"])
     except (KeyError, TypeError) as error:
         message = "Action human request is invalid"
         raise ValueError(message) from error

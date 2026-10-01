@@ -189,3 +189,26 @@ def test_requires_the_current_stored_input_invocation_field(tmp_path: Path) -> N
 
     with pytest.raises(ValueError, match="request is invalid"):
         dispatch(["invoke", str(root), "greet"], request)
+
+
+def test_returns_the_catalog_without_importing_creator_code_or_its_dependencies(tmp_path: Path) -> None:
+    marker = tmp_path / "imported"
+    source = HUMAN_ACTION.replace(
+        "from shimpz import Context, action, identifier, text",
+        f"import not_an_installed_dependency\nfrom pathlib import Path\nPath({str(marker)!r}).touch()\n"
+        "from shimpz import Context, action, identifier, text",
+    )
+    root = create_project(tmp_path / "assistant", source)
+
+    document = json.loads(dispatch(["catalog", str(root)], io.StringIO("")))
+
+    assert document["summary"] == "Test an example."
+    assert sorted(message["msgid"] for message in document["messages"]) == [
+        "Send a greeting to {name}.",
+        "Send greeting",
+        "Test an example.",
+    ]
+    assert [message["id"] for message in document["messages"]] == sorted(
+        message["id"] for message in document["messages"]
+    )
+    assert not marker.exists()
