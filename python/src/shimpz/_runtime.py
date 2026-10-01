@@ -14,7 +14,7 @@ from typing import Any
 from . import _native
 from ._human import HumanRequestSuspension, StoredInputRejection
 from ._project import ActionDefinition, AssistantProject
-from .context import Context
+from .context import ActionDeclaration, Context
 
 _MAX_VALUE_BYTES = 512 * 1_024
 
@@ -52,13 +52,12 @@ async def invoke_action(
         raise ValueError(message)
     input_value = dict(invocation.inputs)
     _validate_value(definition.input_schema, input_value, "Action input")
-    context = Context(
-        tokens,
-        definition.human_requests,
-        invocation.responses,
-        stored_input_ids=definition.stored_inputs,
-        stored_inputs=stored_values,
+    declaration = ActionDeclaration(
+        human_requests=definition.human_requests,
+        stored_inputs=definition.stored_inputs,
+        messages=project.messages,
     )
+    context = Context(tokens, declaration, invocation.responses, stored_inputs=stored_values)
     arguments = dict(input_value)
     if "ctx" in inspect.signature(definition.body).parameters:
         arguments["ctx"] = context

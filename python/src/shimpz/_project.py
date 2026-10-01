@@ -2,20 +2,20 @@
 
 from __future__ import annotations
 
-import hashlib
 import importlib.util
 import json
 import re
 import stat
 import sys
 import tomllib
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType
 
 from . import _native
+from ._catalog import load_catalog
 from ._schema import JsonSchema, compile_action_schemas
 from .action import ActionBody, get_action_metadata
 
@@ -48,11 +48,12 @@ class ActionDefinition:
 
 @dataclass(frozen=True, slots=True)
 class AssistantProject:
-    """A validated manifest and its directly contained Actions."""
+    """A validated manifest, its statically extracted message catalog, and its directly contained Actions."""
 
     root: Path
     manifest_source: str
     actions: tuple[ActionDefinition, ...]
+    messages: tuple[Mapping[str, object], ...]
 
     @classmethod
     def load(cls, root: Path) -> AssistantProject:
@@ -63,19 +64,17 @@ class AssistantProject:
         files = _action_files(resolved)
         _native.validate_source_tree(_source_entries_json(resolved, files))
         _native.validate_source_icon((resolved / "icon.png").read_bytes())
+        summary = tomllib.loads(manifest_source)["shimpz"]["summary"]
+        messages = tuple(load_catalog(resolved, files, summary))
         with _import_path(resolved):
             actions = tuple(_load_action(path, resolved) for path in files)
-        return cls(root=resolved, manifest_source=manifest_source, actions=actions)
+        return cls(root=resolved, manifest_source=manifest_source, actions=actions, messages=messages)
 
     def contract(self) -> str:
         """Build the canonical in-memory contract through Genesis."""
         inputs = [action.contract_input() for action in self.actions]
         actions_json = json.dumps(inputs, ensure_ascii=True, allow_nan=False, separators=(",", ":"))
-        summary = tomllib.loads(self.manifest_source)["shimpz"]["summary"]
-        messages = [
-            {"id": hashlib.sha256(summary.encode()).hexdigest(), "msgid": summary, "max_length": 160, "params": []}
-        ]
-        messages_json = json.dumps(messages, ensure_ascii=True, allow_nan=False, separators=(",", ":"))
+        messages_json = json.dumps(list(self.messages), ensure_ascii=True, allow_nan=False, separators=(",", ":"))
         return _native.build_contract(self.manifest_source, actions_json, messages_json)
 
 

@@ -1,5 +1,6 @@
 """Tests for the private Rust CLI bridge."""
 
+import hashlib
 import io
 import json
 from pathlib import Path
@@ -41,7 +42,7 @@ async def run(name: str) -> Result:
 HUMAN_ACTION = """
 from typing import TypedDict
 
-from shimpz import Context, action
+from shimpz import Context, action, identifier, text
 
 
 class Result(TypedDict):
@@ -51,8 +52,8 @@ class Result(TypedDict):
 @action(human_requests=["approval"])
 async def run(name: str, *, ctx: Context) -> Result:
     ctx.request_approval(
-        title="Send greeting",
-        description=f"Send a greeting to {name}.",
+        title=text("Send greeting"),
+        description=text("Send a greeting to {name}.", name=identifier(name, max_length=32)),
     )
     return {"approved": True}
 """
@@ -60,7 +61,7 @@ async def run(name: str, *, ctx: Context) -> Result:
 STORED_ACTION = """
 from typing import TypedDict
 
-from shimpz import Context, InputRequest, action
+from shimpz import Context, InputRequest, action, text
 
 
 class Result(TypedDict):
@@ -71,9 +72,9 @@ class Result(TypedDict):
 async def run(name: str, *, ctx: Context) -> Result:
     token = ctx.request_input(InputRequest(
         "password",
-        "WhatsApp token",
-        "Enter the token used by this WhatsApp Action.",
-        "Token",
+        text("WhatsApp token"),
+        text("Enter the token used by this WhatsApp Action."),
+        text("Token"),
         min_length=1,
         stored_input="whatsapp-token",
     ))
@@ -100,6 +101,7 @@ def test_builds_a_contract_for_the_rust_cli(tmp_path: Path) -> None:
     contract = json.loads(dispatch(["contract", str(root)], io.StringIO("")))
 
     assert contract["actions"][0]["id"] == "greet"
+    assert [message["msgid"] for message in contract["messages"]] == ["Test an example."]
 
 
 def test_invokes_a_action_from_a_stdin_request(tmp_path: Path) -> None:
@@ -129,6 +131,10 @@ def test_returns_a_tagged_request_and_replays_its_response(tmp_path: Path) -> No
 
     assert suspended["type"] == "request"
     frame = suspended["request"]
+    assert frame["description"] == {
+        "message": hashlib.sha256(b"Send a greeting to {name}.").hexdigest(),
+        "params": {"name": "Ada"},
+    }
     invocation["responses"] = [
         {
             "kind": frame["kind"],

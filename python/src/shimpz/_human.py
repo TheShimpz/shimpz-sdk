@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 from collections.abc import Mapping, Sequence
+
+from ._protocol.human_request_validator import fingerprint, request_error
 
 MAX_REQUESTS = 8
 
@@ -31,6 +31,7 @@ class HumanRequestRuntime:
     __slots__ = (
         "_allowed",
         "_authorization_requested",
+        "_catalog",
         "_index",
         "_resolved_stored_inputs",
         "_responses",
@@ -44,10 +45,12 @@ class HumanRequestRuntime:
         allowed: Sequence[str],
         responses: Sequence[Mapping[str, object]],
         stored_inputs: Mapping[str, str] | None = None,
+        catalog: Mapping[str, Mapping[str, object]] | None = None,
     ) -> None:
         if len(responses) > MAX_REQUESTS:
             raise ValueError("Action human response transcript is invalid")
         self._allowed = frozenset(allowed)
+        self._catalog = dict(catalog or {})
         self._authorization_requested = False
         self._responses = tuple(dict(item) for item in responses)
         self._index = 0
@@ -70,12 +73,15 @@ class HumanRequestRuntime:
         if self._index >= MAX_REQUESTS:
             raise ValueError("Action exceeded its human request limit")
         request = {"kind": kind, "ordinal": self._index, **descriptor}
-        fingerprint = _fingerprint(request)
-        framed = {**request, "fingerprint": fingerprint}
+        error = request_error(request, self._catalog)
+        if error is not None:
+            raise ValueError(f"Action human request is invalid: {error}")
+        digest = _fingerprint(request)
+        framed = {**request, "fingerprint": digest}
         if self._index == len(self._responses):
             raise HumanRequestSuspension(framed)
         response = self._responses[self._index]
-        _match_response(response, kind, self._index, fingerprint)
+        _match_response(response, kind, self._index, digest)
         value = response["value"]
         _validate_value(kind, descriptor, value)
         self._index += 1
@@ -125,16 +131,9 @@ class HumanRequestRuntime:
 
 def _fingerprint(request: object) -> str:
     try:
-        encoded = json.dumps(
-            request,
-            ensure_ascii=False,
-            allow_nan=False,
-            sort_keys=True,
-            separators=(",", ":"),
-        ).encode("utf-8")
+        return fingerprint(request)
     except (TypeError, ValueError, UnicodeError, RecursionError) as error:
         raise ValueError("Action human request is invalid") from error
-    return hashlib.sha256(encoded).hexdigest()
 
 
 def _match_response(

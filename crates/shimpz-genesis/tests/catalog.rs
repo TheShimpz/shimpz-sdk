@@ -174,3 +174,101 @@ fn refuses_unknown_kinds_bounds_and_members() {
     extra["locale"] = json!("en");
     assert!(build(vec![extra]).is_err());
 }
+
+const CATALOG_VECTORS: &str = include_str!("../protocol/assistant/v1/catalog-vectors.json");
+/// Reference refusals that depend only on language-neutral structure, which
+/// Genesis must refuse as well. Unicode text refusals stay with the binding.
+const STRUCTURAL_ERRORS: [&str; 8] = [
+    "catalog_shape",
+    "catalog_bounds",
+    "catalog_order",
+    "catalog_summary",
+    "message_shape",
+    "message_id",
+    "message_params",
+    "message_budget",
+];
+
+fn generated(summary: &str, spec: &Value) -> Vec<Value> {
+    let count = usize::try_from(spec["count"].as_u64().expect("count")).expect("count");
+    let padding = usize::try_from(spec["padding"].as_u64().expect("padding")).expect("padding");
+    let width = spec["params"].as_u64().expect("params");
+    let params: Vec<Value> = (0..width)
+        .map(|index| json!({"name": format!("p{index}"), "kind": "integer", "max_length": 1}))
+        .collect();
+    let fields = (0..width)
+        .map(|index| format!(" {{p{index}}}"))
+        .collect::<Vec<_>>()
+        .concat();
+    let tail = if padding == 0 {
+        String::new()
+    } else {
+        format!(" {}", "x".repeat(padding))
+    };
+    let mut messages = vec![message(summary, 160, &json!([]))];
+    messages.extend((0..count - 1).map(|index| {
+        message(
+            &format!("{index:04}{fields}{tail}"),
+            500,
+            &Value::Array(params.clone()),
+        )
+    }));
+    sorted(messages)
+}
+
+/// The summary message plus one entry of `depth` nested arrays, as JSON text so
+/// that no deeply nested value is ever built in memory.
+fn nested(summary: &str, depth: u64) -> String {
+    let depth = usize::try_from(depth).expect("depth");
+    format!(
+        "[{},{}{}]",
+        message(summary, 160, &json!([])),
+        "[".repeat(depth),
+        "]".repeat(depth)
+    )
+}
+
+fn build_for(summary: &str, messages: &str) -> Result<AssistantContract, String> {
+    let manifest = MANIFEST.replace(SUMMARY, summary);
+    let manifest = AssistantManifest::parse(&manifest).expect("vector summary manifest");
+    let schema =
+        json!({"type": "object", "properties": {}, "required": [], "additionalProperties": false});
+    let action = ActionContract::new(
+        "publish",
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+        schema.clone(),
+        schema,
+    )
+    .expect("valid Action");
+    let messages: Vec<Message> =
+        serde_json::from_str(messages).map_err(|error| error.to_string())?;
+    AssistantContract::build(&manifest, vec![action], messages)
+        .map_err(|error| error.message().to_owned())
+}
+
+#[test]
+fn admits_every_reference_catalog_and_refuses_its_structural_rejections() {
+    let vectors: Value = serde_json::from_str(CATALOG_VECTORS).expect("catalog vectors");
+    for case in vectors["catalog_cases"].as_array().expect("catalog cases") {
+        let name = case["name"].as_str().expect("name");
+        let summary = case["summary"].as_str().expect("summary");
+        let messages = if let Some(spec) = case.get("generated") {
+            Value::Array(generated(summary, spec)).to_string()
+        } else if let Some(depth) = case.get("nested") {
+            nested(summary, depth.as_u64().expect("depth"))
+        } else {
+            case["messages"].to_string()
+        };
+        let outcome = build_for(summary, &messages);
+        if case["valid"] == json!(true) {
+            assert!(outcome.is_ok(), "{name}: {outcome:?}");
+        } else if STRUCTURAL_ERRORS.contains(&case["error"].as_str().expect("error"))
+            || (case["error"] == "message_placeholders" && !name.contains("mark"))
+            || name == "reject_overlong_msgid"
+        {
+            assert!(outcome.is_err(), "{name}");
+        }
+    }
+}

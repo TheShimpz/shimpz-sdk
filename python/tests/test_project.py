@@ -61,6 +61,7 @@ def test_discovers_one_action_per_python_file(tmp_path: Path) -> None:
     contract = json.loads(project.contract())
 
     assert contract["version"] == 1
+    assert set(contract) == {"version", "actions", "messages"}
     assert set(contract["actions"][0]) == {
         "id",
         "integrations",
@@ -214,3 +215,61 @@ def test_refuses_a_noncanonical_stored_input_key_page(tmp_path: Path, help_url: 
     with pytest.raises(ValueError, match="help_url is invalid") as error:
         AssistantProject.load(root)
     assert help_url not in str(error.value)
+
+
+CATALOG_ACTION = """
+from typing import TypedDict
+
+from shimpz import Context, action, domain, text
+from lib.copy import DETAIL
+
+
+class Result(TypedDict):
+    created: bool
+
+
+@action(integrations=["cloudflare"], human_requests=["approval"])
+async def run(zone: str, *, ctx: Context) -> Result:
+    ctx.request_approval(title=text("Create {zone}", zone=domain(zone, max_length=60)), description=DETAIL)
+    return {"created": True}
+"""
+
+
+def test_contract_carries_the_statically_extracted_catalog(tmp_path: Path) -> None:
+    root = create_project(tmp_path / "assistant", action_source=CATALOG_ACTION)
+    (root / "lib").mkdir()
+    (root / "lib" / "copy.py").write_text(
+        'from shimpz import text\n\nDETAIL = text("Create the DNS record.", max_length=500)\n', encoding="utf-8"
+    )
+
+    messages = json.loads(AssistantProject.load(root).contract())["messages"]
+
+    assert [message["id"] for message in messages] == sorted(message["id"] for message in messages)
+    assert {message["msgid"]: message["max_length"] for message in messages} == {
+        "Create {zone}": 80,
+        "Create the DNS record.": 500,
+        "Manage DNS records.": 160,
+    }
+
+
+def test_extracts_before_importing_creator_code(tmp_path: Path) -> None:
+    marker = tmp_path / "imported"
+    source = ACTION.replace(
+        "from shimpz import action",
+        f"from pathlib import Path\nfrom shimpz import action, text\nPath({str(marker)!r}).touch()\n"
+        "TITLE = text(f'Create {{1}}', max_length=80)",
+    )
+    root = create_project(tmp_path / "assistant", action_source=source)
+
+    with pytest.raises(ValueError, match=r"actions/create_dns\.py:\d+: .*f-string"):
+        AssistantProject.load(root)
+    assert not marker.exists()
+
+
+def test_refuses_a_summary_that_cannot_join_the_catalog(tmp_path: Path) -> None:
+    root = create_project(tmp_path / "assistant")
+    manifest = MANIFEST.replace('summary = "Manage DNS records."', 'summary = "Manage {zone} records."')
+    (root / "shimpz.toml").write_text(manifest, encoding="utf-8")
+
+    with pytest.raises(ValueError, match=r"shimpz\.toml summary"):
+        AssistantProject.load(root)
