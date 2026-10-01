@@ -205,6 +205,17 @@ def test_refuses_invalid_templates(tmp_path: Path, template: str, match: str) ->
     assert message.startswith("actions/publish.py:2:")
 
 
+def test_budget_diagnostic_shows_literal_length_parameter_maxima_and_field_limit(tmp_path: Path) -> None:
+    source = HEADER + "x = text('Zone {zone} has {count} records', zone=domain(z), count=integer(c, digits=3), max_length=80)\n"
+
+    message = refused(tmp_path, source, "does not fit")
+
+    assert message.endswith(
+        "message does not fit its 80-character field: 18 literal characters + parameter maxima "
+        "(count 3 + zone 253) = 274"
+    )
+
+
 def test_refuses_conflicting_declarations_and_an_invalid_summary(tmp_path: Path) -> None:
     conflicting = HEADER + (
         "a = text('N {n}', n=integer(n, digits=2), max_length=80)\n"

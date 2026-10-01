@@ -50,7 +50,14 @@ interface language: Developers translates each distinct message once, and reques
 parameters stay canonical. A plain string is refused.
 
 ```python
-text("DNS changes to publish: {count}. Zone: {zone}.", count=integer(n, digits=4), zone=domain(zone, max_length=60))
+from shimpz import domain, integer, text
+
+summary = text(
+    "DNS changes to publish: {count}. Zone: {zone}.",
+    count=integer(n, digits=4),
+    zone=domain(zone, max_length=60),
+    max_length=500,
+)
 ```
 
 - The template is an English, NFC string literal written directly in the call. Computed templates, f-strings,

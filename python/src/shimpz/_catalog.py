@@ -69,10 +69,20 @@ def _reason(use: MessageUse, error: str) -> str:
         return "message template must be NFC-normalized"
     reasons = {
         "public_text": "message template must be trimmed printable text of 1 to 500 characters without format controls",
-        "message_budget": f"message does not fit its {use.bound}-character field with its parameter maxima",
+        "message_budget": _budget_reason(use),
         "message_params": "message parameters must be at most 8 names matching [a-z][a-z0-9_]{0,31}",
     }
     return reasons.get(error, f"message is invalid: {error}")
+
+
+def _budget_reason(use: MessageUse) -> str:
+    literal = len(use.msgid) - sum(len(name) + 2 for name, _, _ in use.params)
+    maxima = " + ".join(f"{name} {maximum}" for name, _, maximum in use.params)
+    total = literal + sum(maximum for _, _, maximum in use.params)
+    return (
+        f"message does not fit its {use.bound}-character field: {literal} literal characters"
+        f"{f' + parameter maxima ({maxima})' if maxima else ''} = {total}"
+    )
 
 
 def _placeholder_reason(use: MessageUse) -> str:
