@@ -143,6 +143,24 @@ fn refuses_structural_catalog_errors() {
 }
 
 #[test]
+fn admits_an_exact_dns_name_parameter_up_to_253_characters() {
+    let record = message(
+        "Authorize the record {name}.",
+        500,
+        &json!([{"name": "name", "kind": "dns_name", "max_length": 253}]),
+    );
+    let contract =
+        build(sorted(vec![message(SUMMARY, 160, &json!([])), record])).expect("dns_name catalog");
+    let declared = contract
+        .messages()
+        .iter()
+        .find(|item| !item.params().is_empty())
+        .expect("parameterized message");
+    assert_eq!(declared.params()[0].kind(), "dns_name");
+    assert_eq!(declared.params()[0].max_length(), 253);
+}
+
+#[test]
 fn refuses_unknown_kinds_bounds_and_members() {
     let summary = message(SUMMARY, 160, &json!([]));
     for (params, max_length) in [
@@ -153,6 +171,10 @@ fn refuses_unknown_kinds_bounds_and_members() {
         (
             json!([{"name": "zone", "kind": "integer", "max_length": 16}]),
             80,
+        ),
+        (
+            json!([{"name": "zone", "kind": "dns_name", "max_length": 254}]),
+            500,
         ),
         (
             json!([{"name": "Zone", "kind": "domain", "max_length": 20}]),

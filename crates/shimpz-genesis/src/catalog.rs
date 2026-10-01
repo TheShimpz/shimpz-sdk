@@ -67,7 +67,7 @@ impl MessageParam {
         &self.name
     }
 
-    /// Return the closed parameter kind: `integer`, `domain`, or `identifier`.
+    /// Return the closed parameter kind: `integer`, `domain`, `dns_name`, or `identifier`.
     #[must_use]
     pub fn kind(&self) -> &str {
         &self.kind
@@ -168,7 +168,7 @@ fn validate_message(message: &Message) -> Result<(), ContractError> {
 fn valid_param(param: &MessageParam) -> bool {
     let bound = match param.kind.as_str() {
         "integer" => 15,
-        "domain" => 253,
+        "domain" | "dns_name" => 253,
         "identifier" => 128,
         _ => return false,
     };
