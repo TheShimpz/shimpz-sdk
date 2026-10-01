@@ -63,6 +63,10 @@ class _Scanner:
         for node in ast.walk(self._tree):
             if isinstance(node, ast.Import | ast.ImportFrom):
                 self._bind(node)
+            if isinstance(node, ast.Call):
+                named = [keyword.arg for keyword in node.keywords if keyword.arg is not None]
+                if len(named) != len(set(named)):
+                    self._fail(node, "a call repeats a keyword argument")
         consumed: set[ast.AST] = set()
         uses: list[MessageUse] = []
         for node in ast.walk(self._tree):

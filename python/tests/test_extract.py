@@ -144,6 +144,9 @@ def test_ignores_unrelated_text_names_and_annotation_only_fields(tmp_path: Path)
             r"after \*args",
         ),
         ("InputOption(*values, text('Safe'))\n", r"after \*args"),
+        ("x = text('Zone', max_length=500, max_length=80)\n", "repeats a keyword"),
+        ("x = text('N {n}', n=integer(n, digits=1, digits=9), max_length=80)\n", "repeats a keyword"),
+        ("ctx.request_approval(title=text('A'), title=text('B'), description=text('D'))\n", "repeats a keyword"),
         ("text = None\n", "rebinding 'text'"),
     ],
 )
