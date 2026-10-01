@@ -64,8 +64,7 @@ class AssistantProject:
         files = _action_files(resolved)
         _native.validate_source_tree(_source_entries_json(resolved, files))
         _native.validate_source_icon((resolved / "icon.png").read_bytes())
-        summary = tomllib.loads(manifest_source)["shimpz"]["summary"]
-        messages = tuple(load_catalog(resolved, files, summary))
+        messages = tuple(load_catalog(resolved, files, _summary(manifest_source)))
         with _import_path(resolved):
             actions = tuple(_load_action(path, resolved) for path in files)
         return cls(root=resolved, manifest_source=manifest_source, actions=actions, messages=messages)
@@ -76,6 +75,18 @@ class AssistantProject:
         actions_json = json.dumps(inputs, ensure_ascii=True, allow_nan=False, separators=(",", ":"))
         messages_json = json.dumps(list(self.messages), ensure_ascii=True, allow_nan=False, separators=(",", ":"))
         return _native.build_contract(self.manifest_source, actions_json, messages_json)
+
+
+def load_messages(root: Path) -> list[dict[str, object]]:
+    """Return the statically extracted English catalog without importing any Creator code."""
+    resolved = root.resolve()
+    manifest_source = _read_manifest(resolved)
+    _native.validate_manifest(manifest_source)
+    return load_catalog(resolved, _action_files(resolved), _summary(manifest_source))
+
+
+def _summary(manifest_source: str) -> str:
+    return tomllib.loads(manifest_source)["shimpz"]["summary"]
 
 
 def _read_manifest(root: Path) -> str:

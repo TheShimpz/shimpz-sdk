@@ -10,7 +10,8 @@ from typing import Any, TextIO
 
 from ._human import HumanRequestSuspension, StoredInputRejection
 from ._json import strict_loads
-from ._project import AssistantProject
+from ._project import AssistantProject, load_messages
+from ._reference import render_request
 from ._runtime import ActionExecutionError, ActionInvocation, invoke_action
 
 _MAX_REQUEST_BYTES = 512 * 1_024
@@ -58,20 +59,39 @@ def dispatch(arguments: list[str], source: TextIO) -> str:
         except StoredInputRejection as rejection:
             return _json({"type": "stored_input_rejected", "stored_input": rejection.stored_input})
         return _json({"type": "result", "result": result})
+    if len(arguments) == 2 and arguments[0] == "render":
+        return _json(_render(Path(arguments[1]), source))
     message = "private bridge command is invalid"
     raise ValueError(message)
 
 
-def _request(source: TextIO) -> dict[str, Any]:
+def _render(root: Path, source: TextIO) -> dict[str, Any]:
+    """Render one framed request in English for local display; the canonical request is unchanged."""
+    payload = _bounded_json(source)
+    if not isinstance(payload, dict) or set(payload) != {"request"} or not isinstance(payload["request"], dict):
+        message = "private bridge request is invalid"
+        raise ValueError(message)
+    try:
+        return render_request(payload["request"], load_messages(root))
+    except (KeyError, TypeError) as error:
+        message = "Action human request is invalid"
+        raise ValueError(message) from error
+
+
+def _bounded_json(source: TextIO) -> object:
     raw = source.read(_MAX_REQUEST_BYTES + 1)
     if not 0 < len(raw.encode()) <= _MAX_REQUEST_BYTES:
         message = "private bridge request is invalid"
         raise ValueError(message)
     try:
-        payload = strict_loads(raw)
+        return strict_loads(raw)
     except ValueError as error:
         message = "private bridge request is invalid"
         raise ValueError(message) from error
+
+
+def _request(source: TextIO) -> dict[str, Any]:
+    payload = _bounded_json(source)
     valid = (
         isinstance(payload, dict)
         and set(payload)

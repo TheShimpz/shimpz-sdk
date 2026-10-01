@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 
-from ._protocol.human_request_validator import COPY_BOUNDS, reference_error
+from ._protocol.human_request_validator import COPY_BOUNDS, fingerprint, reference_error, request_error
 from ._protocol.message_catalog_validator import message_id, public_text, render
 from .message import Text
 
@@ -49,13 +49,40 @@ def copy_reference(copy: object, field: str, catalog: Catalog, *, nullable: bool
     return reference
 
 
-def render_reference(reference: Mapping[str, object], field: str, catalog: Catalog) -> str:
-    """Render one admitted reference through the English catalog and check the field bound after insertion."""
-    bound = COPY_BOUNDS[field]
+def render_reference(reference: Mapping[str, object], catalog: Catalog, bound: int) -> str:
+    """Render one admitted reference through the English catalog and check its field bound after insertion."""
     error = reference_error(reference, catalog, bound)
     if error is not None:
-        raise ValueError(f"Action request {_LABELS[field]} is invalid: {error}")
+        raise ValueError(f"Action request copy is invalid: {error}")
     rendered = render(reference, str(catalog[str(reference["message"])]["msgid"]))
     if not public_text(rendered, bound):
-        raise ValueError(f"Action request {_LABELS[field]} does not render within its field")
+        raise ValueError("Action request copy does not render within its field")
+    return rendered
+
+
+def render_request(request: Mapping[str, object], messages: Sequence[Mapping[str, object]]) -> dict[str, object]:
+    """Return a framed request with every copy reference rendered in English, for local display only.
+
+    The canonical request, its fingerprint, and Team admission are unchanged: this projection never leaves the
+    process that displays it.
+    """
+    catalog = index_catalog(messages)
+    canonical = {key: value for key, value in request.items() if key != "fingerprint"}
+    if request.get("fingerprint") != fingerprint(canonical) or request_error(canonical, catalog) is not None:
+        raise ValueError("Action human request is invalid")
+    rendered = dict(request)
+    for field in ("title", "description", "label", "placeholder"):
+        if field in canonical and canonical[field] is not None:
+            rendered[field] = render_reference(canonical[field], catalog, COPY_BOUNDS[field])  # type: ignore[arg-type]
+    if "options" in canonical:
+        rendered["options"] = [
+            {
+                "value": option["value"],
+                "label": render_reference(option["label"], catalog, COPY_BOUNDS["option_label"]),
+                "description": None
+                if option["description"] is None
+                else render_reference(option["description"], catalog, COPY_BOUNDS["option_description"]),
+            }
+            for option in canonical["options"]  # type: ignore[attr-defined]
+        ]
     return rendered

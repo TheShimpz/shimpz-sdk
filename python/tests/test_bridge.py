@@ -147,6 +147,16 @@ def test_returns_a_tagged_request_and_replays_its_response(tmp_path: Path) -> No
     completed = json.loads(dispatch(["invoke", str(root), "greet"], io.StringIO(json.dumps(invocation))))
     assert completed == {"type": "result", "result": {"approved": True}}
 
+    rendered = json.loads(dispatch(["render", str(root)], io.StringIO(json.dumps({"request": frame}))))
+    assert rendered == {
+        **frame,
+        "title": "Send greeting",
+        "description": "Send a greeting to Ada.",
+    }
+    forged = {**frame, "description": {**frame["description"], "params": {"name": "Lin"}}}
+    with pytest.raises(ValueError, match="request is invalid"):
+        dispatch(["render", str(root)], io.StringIO(json.dumps({"request": forged})))
+
 
 def test_reuses_and_explicitly_rejects_one_stored_input(tmp_path: Path) -> None:
     manifest = (
