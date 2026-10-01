@@ -2,9 +2,12 @@
 
 import hashlib
 import json
+import re
+from typing import Annotated
 
 import pytest
 from shimpz import _native
+from shimpz._schema import schema_for_type
 
 MANIFEST = """
 [shimpz]
@@ -103,6 +106,44 @@ def test_refuses_a_dense_action_schema_before_publication() -> None:
 
     with pytest.raises(ValueError, match="Action schema has too many JSON values"):
         _native.build_contract(MANIFEST, json.dumps(actions), SUMMARY)
+
+
+def _pattern_actions(pattern: str) -> str:
+    field = schema_for_type(Annotated[str, {"pattern": pattern}])
+    schema = {**SCHEMA, "properties": {"value": field}}
+    return json.dumps(
+        [
+            {
+                "id": "example",
+                "integrations": [],
+                "stored_inputs": [],
+                "human_requests": [],
+                "input_schema": schema,
+                "output_schema": SCHEMA,
+            }
+        ]
+    )
+
+
+@pytest.mark.parametrize("pattern", [r"^[a-z0-9_-]{1,64}$", r"(?i)^\w+$", r"^(?P<zone>[a-z]+)\.example$"])
+def test_admits_an_annotated_pattern_publication_admits(pattern: str) -> None:
+    _native.build_contract(MANIFEST, _pattern_actions(pattern), SUMMARY)
+
+
+@pytest.mark.parametrize(
+    "pattern", [r"(?x)^[a-z]+$", r"\u0041", r"a{1001}", r"a{1, 2}", r"(?:a{100}){11}", "^.{1,1000}$"]
+)
+def test_refuses_an_annotated_pattern_publication_refuses(pattern: str) -> None:
+    re.compile(pattern)
+
+    with pytest.raises(ValueError, match="Action schema pattern is invalid"):
+        _native.build_contract(MANIFEST, _pattern_actions(pattern), SUMMARY)
+
+
+@pytest.mark.parametrize(("pattern", "subject"), [(r"^\d$", "\u0663"), (r"^\s$", "\v"), (r"\bé", "é")])
+def test_matches_patterns_with_team_re2_semantics(pattern: str, subject: str) -> None:
+    with pytest.raises(ValueError, match="value does not match schema"):
+        _native.validate_json(json.dumps({"type": "string", "pattern": pattern}), json.dumps(subject))
 
 
 def test_validates_private_values_without_leaking_them() -> None:
