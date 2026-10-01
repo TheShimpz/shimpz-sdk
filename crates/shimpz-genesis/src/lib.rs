@@ -6,6 +6,8 @@ mod contract_validation;
 mod error;
 mod help_url;
 mod manifest;
+mod pattern;
+mod pattern_bound;
 mod schema;
 mod source_icon;
 mod source_tree;

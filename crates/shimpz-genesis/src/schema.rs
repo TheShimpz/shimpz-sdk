@@ -1,9 +1,9 @@
 use std::collections::HashSet;
 
-use regex::Regex;
 use serde_json::{Map, Value};
 
 use crate::ContractError;
+use crate::pattern::pattern_admitted;
 
 const MAX_DEPTH: usize = 16;
 
@@ -66,10 +66,11 @@ fn validate_string(object: &Map<String, Value>) -> Result<(), ContractError> {
     let maximum = optional_u64(object, "maxLength")?;
     validate_u64_bounds(minimum, maximum)?;
     if let Some(pattern) = object.get("pattern") {
-        let source = pattern
-            .as_str()
-            .ok_or_else(|| ContractError::new("Action schema pattern is invalid"))?;
-        Regex::new(source).map_err(|_| ContractError::new("Action schema pattern is invalid"))?;
+        // Only the RE2-compatible subset Developers publishes is admitted.
+        require(
+            pattern.as_str().is_some_and(pattern_admitted),
+            "Action schema pattern is invalid",
+        )?;
     }
     if let Some(options) = object.get("enum") {
         validate_enum(options)?;

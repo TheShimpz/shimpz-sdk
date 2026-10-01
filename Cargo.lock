@@ -312,6 +312,7 @@ version = "0.5.0"
 dependencies = [
  "base64",
  "regex",
+ "regex-syntax",
  "semver",
  "serde",
  "serde_json",
