@@ -1,10 +1,12 @@
 """Tests for minimal Assistant project discovery."""
 
+import io
 import json
 from pathlib import Path
 
 import pytest
 from _fixtures import write_icon
+from shimpz._bridge import dispatch
 from shimpz._project import AssistantProject
 
 MANIFEST = """
@@ -273,3 +275,27 @@ def test_refuses_a_summary_that_cannot_join_the_catalog(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match=r"shimpz\.toml summary"):
         AssistantProject.load(root)
+
+
+def _link_actions_outside(tmp_path: Path) -> Path:
+    root = create_project(tmp_path / "assistant")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "create_dns.py").write_text(ACTION, encoding="utf-8")
+    outside.chmod(0)
+    for entry in (root / "actions").iterdir():
+        entry.unlink()
+    (root / "actions").rmdir()
+    (root / "actions").symlink_to(outside, target_is_directory=True)
+    return outside
+
+
+def test_refuses_a_linked_actions_directory_before_reading_its_target(tmp_path: Path) -> None:
+    outside = _link_actions_outside(tmp_path)
+    try:
+        with pytest.raises(ValueError, match="actions/ must be a directory, not a link"):
+            AssistantProject.load(tmp_path / "assistant")
+        with pytest.raises(ValueError, match="actions/ must be a directory, not a link"):
+            dispatch(["render", str(tmp_path / "assistant")], io.StringIO('{"request": {}}'))
+    finally:
+        outside.chmod(0o700)

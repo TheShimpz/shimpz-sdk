@@ -98,6 +98,9 @@ def _read_manifest(root: Path) -> str:
 
 def _action_files(root: Path) -> tuple[Path, ...]:
     directory = root / "actions"
+    if directory.is_symlink():
+        message = "actions/ must be a directory, not a link"
+        raise ValueError(message)
     if not directory.is_dir():
         message = "actions/ is required"
         raise ValueError(message)
