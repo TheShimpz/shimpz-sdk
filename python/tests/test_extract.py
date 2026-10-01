@@ -92,6 +92,20 @@ def test_scans_lib_modules_and_the_module_import_form(tmp_path: Path) -> None:
     assert messages["Delete {zone}"]["max_length"] == 500
 
 
+def test_admits_other_shimpz_import_spellings(tmp_path: Path) -> None:
+    source = (
+        "import shimpz as sz\n"
+        "from shimpz.context import ActionDeclaration, Context\n"
+        "from shimpz.message import Text\n"
+        "from shimpz.human import InputRequest\n"
+        "from shimpz import action, text\n"
+        "CONTEXT = sz.Context\n"
+        "InputRequest('text', text('Zone'), text('Choose a zone.'), text('Zone'))\n"
+    )
+
+    assert by_msgid(catalog(tmp_path, source))["Choose a zone."]["max_length"] == 500
+
+
 def test_ignores_unrelated_text_names_and_annotation_only_fields(tmp_path: Path) -> None:
     unrelated = "def text(value):\n    return value\n\ntext(compute())\n"
     assert by_msgid(catalog(tmp_path, unrelated)).keys() == {SUMMARY}
@@ -143,9 +157,14 @@ def test_refuses_unsupported_calls_with_a_source_location(tmp_path: Path, source
     ("source", "match"),
     [
         ("from shimpz import text as t\n", "without an alias"),
-        ("import shimpz as sz\n", "without an alias"),
+        ("import shimpz as sz\nx = sz.text('Zone', max_length=80)\n", "call shimpz.text directly"),
+        ("import shimpz as sz\nx = sz.message.text('Zone', max_length=80)\n", "call shimpz.text directly"),
         ("from shimpz import *\n", "without an alias"),
+        ("from shimpz import message as m\nx = m.text('Zone', max_length=80)\n", "shimpz.message module"),
+        ("from shimpz import message\n", "shimpz.message module"),
+        ("import shimpz.message as m\n", "shimpz.message module"),
         ("from shimpz.message import text\n", "from shimpz import"),
+        ("from shimpz.message import integer as count\n", "from shimpz import"),
         ("from lib.copy import text\n", "from shimpz import"),
         ("from .copy import text\n", "from shimpz import"),
         ("import shimpz.message\nx = shimpz.message.text('Zone', max_length=80)\n", "call shimpz.text directly"),

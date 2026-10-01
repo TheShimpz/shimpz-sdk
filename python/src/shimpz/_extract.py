@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import ast
 from collections.abc import Iterator, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from ._extract_call import CopyField, ExtractionError, MessageUse, parse_text_call
@@ -19,6 +19,7 @@ _API = frozenset({_TEXT, *_HELPERS})
 class _Bindings:
     module: bool = False
     names: dict[str, str] | None = None
+    aliases: set[str] = field(default_factory=set)
 
     def api(self, node: ast.AST) -> str | None:
         """Return the shimpz API name a load of ``node`` resolves to, if any."""
@@ -81,21 +82,39 @@ class _Scanner:
 
     def _bind(self, node: ast.Import | ast.ImportFrom) -> None:
         if isinstance(node, ast.Import):
-            for alias in node.names:
-                if alias.name == "shimpz" or alias.name.startswith("shimpz."):
-                    if alias.asname is not None:
-                        self._fail(node, "import shimpz without an alias")
-                    self._bindings.module = True
+            self._bind_modules(node)
             return
+        module = "" if node.level else node.module or ""
         names = {alias.name for alias in node.names}
-        if node.module != "shimpz" or node.level:
-            if _TEXT in names or (node.module or "").startswith("shimpz"):
-                self._fail(node, "import text and its parameter kinds only with 'from shimpz import ...'")
+        if module != "shimpz" and not module.startswith("shimpz."):
+            if _TEXT in names:
+                self._fail(node, "import text only with 'from shimpz import text'; re-exports are refused")
+            return
+        if module == "shimpz.message" and names & _API:
+            self._fail(node, "import text and its parameter kinds with 'from shimpz import ...'")
+        if module == "shimpz.human":
+            self._bind_names(node, _REQUESTS)
+        if module != "shimpz":
             return
         for alias in node.names:
+            if alias.name == "message":
+                self._fail(node, "import text from shimpz itself, not through the shimpz.message module")
             if alias.name == "*" or (alias.name in _API and alias.asname not in {None, alias.name}):
                 self._fail(node, "import text and its parameter kinds from shimpz by name, without an alias")
-            if alias.name in _API or (alias.name in _REQUESTS and alias.asname is None):
+        self._bind_names(node, _API | _REQUESTS)
+
+    def _bind_modules(self, node: ast.Import) -> None:
+        for alias in node.names:
+            if alias.name == "shimpz.message" and alias.asname is not None:
+                self._fail(node, "import text from shimpz itself, not through the shimpz.message module")
+            if alias.asname is None and alias.name.split(".")[0] == "shimpz":
+                self._bindings.module = True
+            elif alias.name == "shimpz":
+                self._bindings.aliases.add(alias.asname)  # type: ignore[arg-type]
+
+    def _bind_names(self, node: ast.ImportFrom, admitted: frozenset[str]) -> None:
+        for alias in node.names:
+            if alias.name in admitted and alias.asname in {None, alias.name}:
                 self._bindings.names[alias.name] = alias.name  # type: ignore[index]
 
     def _refuse_rebinding(self, node: ast.AST) -> None:
@@ -106,11 +125,11 @@ class _Scanner:
         if rebound:
             name = sorted(rebound)[0]
             self._fail(node, f"rebinding {name!r} hides the shimpz catalog API; rename it")
+        root = _root_name(node.value) if isinstance(node, ast.Attribute) else None
         if (
             isinstance(node, ast.Attribute)
             and node.attr in _API
-            and not isinstance(node.value, ast.Name)
-            and _root_name(node.value) == "shimpz"
+            and (root in self._bindings.aliases or (root == "shimpz" and not isinstance(node.value, ast.Name)))
         ):
             self._fail(node, f"call shimpz.{node.attr} directly or import it with 'from shimpz import ...'")
 
@@ -149,10 +168,10 @@ def _copy_field(call: ast.Call, argument: str | int, bindings: _Bindings) -> Cop
     owner = bindings.api(func)
     if owner not in _REQUESTS:
         return None
-    field = _POSITIONAL[owner].get(argument) if isinstance(argument, int) else argument
-    if field not in _POSITIONAL[owner].values():
+    name = _POSITIONAL[owner].get(argument) if isinstance(argument, int) else argument
+    if name not in _POSITIONAL[owner].values():
         return None
-    return f"{_PREFIX[owner]}{field}"
+    return f"{_PREFIX[owner]}{name}"
 
 
 def _root_name(node: ast.AST) -> str | None:
