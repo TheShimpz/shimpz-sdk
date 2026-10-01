@@ -4,70 +4,17 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable
-from urllib.parse import quote, quote_plus, urlsplit
+from urllib.parse import urlsplit
 
-from ._protocol.failure_validator import ERROR_TYPE, MAX_PROVIDER, MAX_TEXT_BYTES, PROVIDER, UNSAFE_TEXT, failure_error
+from ._protocol.failure_validator import ERROR_TYPE, MAX_PROVIDER, PROVIDER, failure_error
+from ._redaction import Sanitizer
 
-REDACTED = "[REDACTED]"
-_REPLACEMENT = chr(0xFFFD)
+# A fallback never reflects the failed projection, not even its exception type.
+FALLBACK_TYPE = "Exception"
 # Provider objects may fail from lazy properties; these ordinary failures withhold that detail and nothing else.
 _PROBE_ERRORS = (ArithmeticError, AttributeError, LookupError, OSError, RuntimeError, TypeError, ValueError)
-# Sanitize at most this much of one text before bounding it. The kept prefix is far shorter than this window minus
-# the longest exact secret, so a secret cut at the window edge can never reach the bounded output.
-_WINDOW = 64 * 1_024
 _MAX_CHAIN = 8
 _TEXT_MEDIA = re.compile(r"(?:text/[\w.+-]+|application/(?:[\w.-]+\+)?(?:json|xml)|application/x-www-form-urlencoded)")
-_NAMED_SECRET = re.compile(
-    r"(?i)(?:password|passwd|pwd|secret|token|api[_-]?key|apikey|access[_-]?key|private[_-]?key|authorization"
-    r"|cookie|session[_-]?id|signature|credential|(?<![A-Za-z])key)[\w.-]{0,32}(?P<separator>[\"']?\s{0,4}[:=]\s{0,4}[\"']?)"
-    r"(?P<value>(?!\[REDACTED\])(?:(?:bearer|basic|token)\s+)?[^\s\"'&,;)}\]<>]{1,4096})"
-)
-_SHAPED_SECRETS = (
-    re.compile(r"(?i)\b(?P<keep>(?:bearer|basic|digest|token)\s+)[A-Za-z0-9._~+/=-]{8,}"),
-    re.compile(r"(?i)\b(?P<keep>[a-z][a-z0-9+.-]{0,31}://)[^\s/@:]{0,256}(?::[^\s/@]{0,256})?@"),
-    re.compile(r"-----BEGIN [A-Z ]{0,40}PRIVATE KEY-----(?:[\s\S]*?-----END [A-Z ]{0,40}PRIVATE KEY-----|[\s\S]*)"),
-    re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]*"),
-    re.compile(r"\b(?:sk|rk|pk)[-_][A-Za-z0-9_-]{16,}"),
-    re.compile(r"\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[abposr]-[A-Za-z0-9-]{10,})"),
-    re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b|\bAIza[0-9A-Za-z_-]{35}"),
-)
-
-
-class Sanitizer:
-    """Replace every exact invocation secret and secret-shaped text, recording whether anything was withheld."""
-
-    __slots__ = ("_secrets", "redacted")
-
-    def __init__(self, secrets: Iterable[str]) -> None:
-        variants = {
-            form
-            for secret in secrets
-            if isinstance(secret, str) and secret
-            for form in (secret, quote(secret, safe=""), quote_plus(secret, safe=""))
-        }
-        self._secrets = sorted(variants, key=len, reverse=True)
-        self.redacted = False
-
-    def text(self, value: str, limit: int = MAX_TEXT_BYTES) -> tuple[str, bool]:
-        """Return sanitized safe text within ``limit`` UTF-8 bytes and whether it was truncated."""
-        window = value[:_WINDOW]
-        for secret in self._secrets:
-            if secret in window:
-                window = window.replace(secret, REDACTED)
-                self.redacted = True
-        window = self._shaped(window)
-        bounded, cut = _bounded(_safe_characters(window), limit)
-        return bounded, cut or len(value) > _WINDOW
-
-    def _shaped(self, value: str) -> str:
-        value, count = _NAMED_SECRET.subn(
-            lambda match: match.string[match.start() : match.start("value")] + REDACTED, value
-        )
-        self.redacted |= count > 0
-        for pattern in _SHAPED_SECRETS:
-            value, count = pattern.subn(_replace, value)
-            self.redacted |= count > 0
-        return value
 
 
 def failure_envelope(error: BaseException, secrets: Iterable[str]) -> dict[str, object]:
@@ -79,35 +26,51 @@ def failure_envelope(error: BaseException, secrets: Iterable[str]) -> dict[str, 
         failure = None
     envelope = {"type": "failure", "failure": failure}
     if failure is None or failure_error(envelope) is not None:
-        envelope["failure"] = _fallback(error)
+        envelope["failure"] = _fallback()
     return envelope
 
 
 def _failure(error: BaseException, sanitizer: Sanitizer) -> dict[str, object]:
-    message, message_cut = sanitizer.text(_message(error))
-    response, status, provider = _provider_details(error)
-    excerpt, excerpt_cut = None, False
+    message = sanitizer.text(_message(error))
+    response, status, host = _provider_details(error)
+    excerpt = None
     if response is not None:
         body = _body(response)
         if body is None:
             sanitizer.redacted = True
         else:
-            excerpt, excerpt_cut = sanitizer.text(body)
-    error_type, _ = sanitizer.text(_type_name(error), 128)
+            excerpt = sanitizer.text(body)
+    provider = sanitizer.text(host) if host is not None else None
+    if provider != host:
+        sanitizer.redacted = True
+        provider = None
     return {
-        "error_type": _ascii_word(error_type),
-        "message": message,
+        "error_type": _error_type(error, sanitizer),
+        "message": message or "",
         "provider": provider,
         "http_status": status,
         "response_excerpt": excerpt,
         "redacted": sanitizer.redacted,
-        "truncated": message_cut or excerpt_cut,
+        "truncated": sanitizer.truncated,
     }
 
 
-def _fallback(error: BaseException) -> dict[str, object]:
+def _error_type(error: BaseException, sanitizer: Sanitizer) -> str:
+    """The real type name, sanitized like every other string, as one printable ASCII word of at most 128."""
+    name = sanitizer.text(_type_name(error), 4 * 128) or ""
+    word = "".join(character if "!" <= character <= "~" else "?" for character in name)
+    sanitizer.redacted |= word != name
+    sanitizer.truncated |= len(word) > 128
+    word = word[:128]
+    if ERROR_TYPE.fullmatch(word) is None:
+        sanitizer.redacted = True
+        return FALLBACK_TYPE
+    return word
+
+
+def _fallback() -> dict[str, object]:
     return {
-        "error_type": _ascii_word(_type_name(error)),
+        "error_type": FALLBACK_TYPE,
         "message": "",
         "provider": None,
         "http_status": None,
@@ -129,11 +92,6 @@ def _type_name(error: BaseException) -> str:
     module = getattr(kind, "__module__", "")
     name = getattr(kind, "__qualname__", "") or getattr(kind, "__name__", "")
     return name if module in {"builtins", ""} else f"{module}.{name}"
-
-
-def _ascii_word(value: str) -> str:
-    word = "".join(character if "!" <= character <= "~" else "?" for character in value)[:128]
-    return word if ERROR_TYPE.fullmatch(word) else "Exception"
 
 
 def _provider_details(error: BaseException) -> tuple[object | None, int | None, str | None]:
@@ -193,21 +151,3 @@ def _body(response: object) -> str | None:
         return None
     text = _attribute(response, "text")
     return text if isinstance(text, str) else None
-
-
-def _safe_characters(value: str) -> str:
-    """Normalize line breaks and replace every unsafe or unpaired surrogate character with U+FFFD."""
-    value = UNSAFE_TEXT.sub(_REPLACEMENT, value.replace("\r\n", "\n"))
-    return "".join(_REPLACEMENT if 0xD800 <= ord(character) <= 0xDFFF else character for character in value)
-
-
-def _bounded(value: str, limit: int) -> tuple[str, bool]:
-    encoded = value.encode("utf-8")
-    if len(encoded) <= limit:
-        return value, False
-    return encoded[:limit].decode("utf-8", "ignore"), True
-
-
-def _replace(match: re.Match[str]) -> str:
-    keep = match.groupdict().get("keep")
-    return f"{keep}{REDACTED}" if keep else REDACTED

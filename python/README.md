@@ -208,9 +208,11 @@ within that provider's key scope, retention, and same-payload rules. It is not a
 Raise an ordinary exception when an Action cannot finish; there is no error-code list to choose from. The SDK turns
 it into one failure frame that Team can show and reason about: the exception type, its message, and, for a provider
 error that carries an HTTP response (such as `httpx.HTTPStatusError` or `requests.HTTPError`, also through
-`raise ... from`), the provider host, HTTP status, and the beginning of a textual response body. Before bounding the
-text, the SDK replaces every Integration token, Stored Input value, password response, and value registered with
-`ctx.register_secret(...)`, plus text shaped like credentials, keys, tokens, or URL user information. Register any
+`raise ... from`), the provider host, HTTP status, and the beginning of a textual response body. Before bounding any
+of these strings, the SDK replaces every Integration token, Stored Input value, password response, and value
+registered with `ctx.register_secret(...)`, in any letter case and in their common percent, JSON, and base64
+encodings, plus text shaped like credentials, keys, tokens, or URL user information. A host that held a secret is
+dropped, and text longer than 64 Ki characters is withheld rather than partially checked. Register any
 secret the Action derives or acquires, such as a session token obtained with a Stored Input. A failure is never proof
 that nothing happened: a mutating Action's failure stays uncertain until its verifier settles it. Do not print from an
 Action; printed output is not part of the result, and Team treats any diagnostic stream output as a transport fault.

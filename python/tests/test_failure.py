@@ -1,18 +1,21 @@
 """The sanitized failure envelope: real diagnostics, exact and shaped redaction, and UTF-8-safe bounds."""
 
 import asyncio
+import base64
 import json
 import time
 from pathlib import Path
+from urllib.parse import quote, quote_plus
 
 import pytest
 from _fixtures import write_icon
 from shimpz import Context
 from shimpz import _failure as failure_module
-from shimpz._failure import REDACTED, failure_envelope
+from shimpz._failure import FALLBACK_TYPE, failure_envelope
 from shimpz._human import HumanRequestSuspension
 from shimpz._project import AssistantProject
 from shimpz._protocol.failure_validator import failure_error
+from shimpz._redaction import REDACTED, WINDOW
 from shimpz._runtime import ActionFailure, ActionInvocation, invoke_action
 
 ROOT = Path(__file__).parents[2]
@@ -283,21 +286,85 @@ def test_redaction_precedes_utf8_safe_truncation() -> None:
     assert sentinel not in failure["message"]
 
 
-def test_text_beyond_the_window_is_never_reached() -> None:
+def test_text_beyond_the_window_is_withheld_not_partially_matched() -> None:
     sentinel = "window-edge-secret"
-    message = "a" * (64 * 1_024 - 5) + sentinel
+    message = "a" * (WINDOW - 5) + sentinel
 
     failure = _failure(ValueError(message), sentinel)
 
+    assert (failure["message"], failure["redacted"], failure["truncated"]) == ("", True, True)
+
+
+def test_shrinking_replacements_never_expose_a_clipped_secret() -> None:
+    secrets = ["a" * 16_000, "b" * 15_000, "c" * 14_000, "d" * 13_000, "e" * 10_000]
+
+    failure = _failure(ValueError("".join(secrets)), *secrets)
+
+    assert "e" * 8 not in json.dumps(failure)
+    assert failure["message"] == ""
+    assert failure["redacted"] is True
     assert failure["truncated"] is True
-    assert failure["message"] == "a" * 2_048
 
 
-def test_unsafe_characters_become_replacement_characters() -> None:
+def test_unsafe_characters_become_replacement_characters_and_count_as_redaction() -> None:
     failure = _failure(ValueError("a\r\nb\x1bc\u202ed\ud800e\tf"))
 
     assert failure["message"] == f"a\nb{REPLACEMENT}c{REPLACEMENT}d{REPLACEMENT}e\tf"
-    assert failure["redacted"] is False
+    assert failure["redacted"] is True
+    assert _failure(ValueError("a\r\nb\tc"))["redacted"] is False
+
+
+def test_a_secret_in_the_provider_host_withholds_the_provider() -> None:
+    sentinel = "derived-secret-42"
+    response = _Response(500, "x", "text/plain", url=f"https://{sentinel}.example.com/v1")
+
+    failure = _failure(HTTPStatusError("server error", response), sentinel)
+
+    assert failure["provider"] is None
+    assert failure["redacted"] is True
+    assert sentinel not in json.dumps(failure)
+
+
+def test_a_secret_in_the_exception_type_is_redacted() -> None:
+    sentinel = "TypeSecret99"
+    kind = type(f"Leak{sentinel}", (Exception,), {"__module__": "builtins"})
+
+    failure = _failure(kind("boom"), sentinel)
+
+    assert failure["error_type"] == f"Leak{REDACTED}"
+    assert failure["redacted"] is True
+
+
+def test_an_over_long_type_name_counts_as_truncated() -> None:
+    kind = type("E" * 200, (Exception,), {"__module__": "builtins"})
+
+    failure = _failure(kind("x"))
+
+    assert failure["error_type"] == "E" * 128
+    assert failure["truncated"] is True
+
+
+@pytest.mark.parametrize(
+    "encode",
+    [
+        lambda secret: secret,
+        lambda secret: secret.upper(),
+        lambda secret: base64.b64encode(secret.encode()).decode(),
+        lambda secret: base64.urlsafe_b64encode(secret.encode()).decode().rstrip("="),
+        lambda secret: json.dumps(secret)[1:-1],
+        lambda secret: quote(secret, safe="").lower(),
+        lambda secret: quote_plus(secret, safe=""),
+    ],
+    ids=["exact", "case", "base64", "urlsafe-base64", "json", "lowercase-percent", "form"],
+)
+def test_common_encodings_of_an_injected_value_are_redacted(encode: object) -> None:
+    sentinel = 'k3y/with+"quote" \u00e9?~'
+    shown = encode(sentinel)  # type: ignore[operator]
+
+    failure = _failure(ValueError(f"rejected [{shown}] by provider"), sentinel)
+
+    assert failure["message"] == f"rejected [{REDACTED}] by provider"
+    assert failure["redacted"] is True
 
 
 def test_an_unprintable_exception_keeps_its_type() -> None:
@@ -318,9 +385,10 @@ def test_a_broken_diagnostic_produces_the_closed_fallback(monkeypatch: pytest.Mo
         raise RuntimeError("diagnostic bug")
 
     monkeypatch.setattr(failure_module, "_failure", broken)
+    kind = type("SecretTypeName", (Exception,), {})
 
-    assert _failure(ValueError("secret detail")) == {
-        "error_type": "ValueError",
+    assert _failure(kind("secret detail")) == {
+        "error_type": FALLBACK_TYPE,
         "message": "",
         "provider": None,
         "http_status": None,
@@ -331,9 +399,17 @@ def test_a_broken_diagnostic_produces_the_closed_fallback(monkeypatch: pytest.Mo
 
 
 def test_an_invalid_projection_produces_the_closed_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(failure_module, "_ascii_word", lambda _value: "not ascii word")
+    monkeypatch.setattr(failure_module, "_error_type", lambda _error, _sanitizer: "not ascii word")
 
-    assert failure_envelope(ValueError("x"), ())["failure"]["redacted"] is True
+    failure = failure_envelope(ValueError("x"), ())["failure"]
+    assert (failure["error_type"], failure["redacted"]) == (FALLBACK_TYPE, True)
+
+
+def test_an_empty_type_name_falls_back() -> None:
+    kind = type("", (Exception,), {"__module__": "builtins"})
+    failure = _failure(kind("x"))
+
+    assert (failure["error_type"], failure["redacted"]) == (FALLBACK_TYPE, True)
 
 
 @pytest.mark.parametrize("value", ["", "x" * 16_385, 7])
