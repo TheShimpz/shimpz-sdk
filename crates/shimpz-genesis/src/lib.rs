@@ -8,6 +8,7 @@ mod help_url;
 mod manifest;
 mod pattern;
 mod pattern_bound;
+mod pattern_regex;
 mod schema;
 mod source_icon;
 mod source_tree;

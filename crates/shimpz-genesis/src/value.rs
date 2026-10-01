@@ -1,9 +1,10 @@
 use std::collections::{HashMap, hash_map::Entry};
 
-use regex::Regex;
+use regex::bytes::Regex;
 use serde_json::Value;
 
 use crate::ValueError;
+use crate::pattern_regex::compile;
 use crate::schema::validate_any_schema;
 
 #[derive(Default)]
@@ -18,7 +19,7 @@ impl PatternCache {
             Entry::Occupied(entry) => entry.into_mut().as_ref(),
             Entry::Vacant(entry) => {
                 self.compilations += 1;
-                entry.insert(Regex::new(pattern).ok()).as_ref()
+                entry.insert(compile(pattern)).as_ref()
             }
         }
     }
@@ -69,15 +70,15 @@ fn matches_string(cache: &mut PatternCache, schema: &Value, value: &Value) -> bo
         .get("enum")
         .and_then(Value::as_array)
         .is_none_or(|options| options.iter().any(|option| option.as_str() == Some(text)));
-    // `$` anchors the exact end of the string; a trailing newline does not
-    // match (deliberate divergence from Python `re`).
+    // RE2 semantics: `$` anchors the exact end of the string, so a trailing
+    // newline does not match, and Perl classes and `\b` are ASCII.
     let pattern_valid = schema
         .get("pattern")
         .and_then(Value::as_str)
         .is_none_or(|pattern| {
             cache
                 .regex(pattern)
-                .is_some_and(|regex| regex.is_match(text))
+                .is_some_and(|regex| regex.is_match(text.as_bytes()))
         });
     length_valid && enum_valid && pattern_valid
 }
