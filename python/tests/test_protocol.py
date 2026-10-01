@@ -12,7 +12,13 @@ PACKAGED = ROOT / "python/src/shimpz/_protocol"
 
 
 @pytest.mark.parametrize(
-    "name", ["action_effect_validator.py", "human_request_validator.py", "message_catalog_validator.py"]
+    "name",
+    [
+        "action_effect_validator.py",
+        "failure_validator.py",
+        "human_request_validator.py",
+        "message_catalog_validator.py",
+    ],
 )
 def test_packaged_validators_are_byte_identical_to_the_pinned_mirror(name: str) -> None:
     assert (PACKAGED / name).read_bytes() == (MIRROR / name).read_bytes()
