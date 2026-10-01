@@ -120,7 +120,12 @@ class _Scanner:
             owner = self._parents.get(parent)
             return _copy_field(owner, parent.arg, self._bindings) if isinstance(owner, ast.Call) else None
         if isinstance(parent, ast.Call) and call in parent.args:
-            return _copy_field(parent, parent.args.index(call), self._bindings)
+            index = parent.args.index(call)
+            if self._bindings.api(parent.func) in _REQUESTS and any(
+                isinstance(argument, ast.Starred) for argument in parent.args[:index]
+            ):
+                self._fail(call, "request copy after *args has no static field; pass it as a keyword argument")
+            return _copy_field(parent, index, self._bindings)
         return None
 
     def _location(self, node: ast.AST) -> str:

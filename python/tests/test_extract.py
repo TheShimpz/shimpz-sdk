@@ -125,6 +125,11 @@ def test_ignores_unrelated_text_names_and_annotation_only_fields(tmp_path: Path)
         ("n = integer(3, digits=1)\n", "directly as a text"),
         ("t = text\n", "called directly"),
         ("def build(text):\n    return text\n", "rebinding 'text'"),
+        (
+            "prefix = ['text', text('T', max_length=80)]\nInputRequest(*prefix, text('D'), text('L'))\n",
+            r"after \*args",
+        ),
+        ("InputOption(*values, text('Safe'))\n", r"after \*args"),
         ("text = None\n", "rebinding 'text'"),
     ],
 )
