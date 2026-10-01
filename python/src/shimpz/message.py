@@ -10,9 +10,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-ParamKind = Literal["integer", "domain", "identifier"]
+ParamKind = Literal["integer", "domain", "dns_name", "identifier"]
 FIELD_BOUNDS = (80, 120, 160, 500)
-_PARAM_BOUNDS = {"integer": 15, "domain": 253, "identifier": 128}
+_PARAM_BOUNDS = {"integer": 15, "domain": 253, "dns_name": 253, "identifier": 128}
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,7 +43,9 @@ def text(template: str, /, *, max_length: int | None = None, **params: Param) ->
     if max_length is not None and (type(max_length) is not int or max_length not in FIELD_BOUNDS):
         raise ValueError("text() max_length must be 80, 120, 160, or 500")
     if not all(isinstance(value, Param) for value in params.values()):
-        raise TypeError("text() parameters must use shimpz.integer, shimpz.domain, or shimpz.identifier")
+        raise TypeError(
+            "text() parameters must use shimpz.integer, shimpz.domain, shimpz.dns_name, or shimpz.identifier"
+        )
     return Text(template=template, params=tuple(sorted(params.items())), max_length=max_length)
 
 
@@ -59,6 +61,18 @@ def domain(value: str, *, max_length: int = 253) -> Param:
     if type(value) is not str:
         raise TypeError("shimpz.domain() value must be a str")
     return Param("domain", value, _bound("domain", max_length))
+
+
+def dns_name(value: str, *, max_length: int = 253) -> Param:
+    """Return an exact DNS record name parameter of at most ``max_length`` characters (at most 253).
+
+    A DNS name is one or more dot-separated lowercase ASCII labels of ``[a-z0-9_-]``, each 1 to 63 characters that
+    neither start nor end with ``-``, such as ``_acme-challenge.example.com``. A trailing dot or ``*`` wildcard
+    label is refused, so the person always sees the exact name being authorized.
+    """
+    if type(value) is not str:
+        raise TypeError("shimpz.dns_name() value must be a str")
+    return Param("dns_name", value, _bound("dns_name", max_length))
 
 
 def identifier(value: str, *, max_length: int) -> Param:

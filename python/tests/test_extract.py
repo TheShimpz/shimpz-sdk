@@ -8,7 +8,7 @@ from shimpz._catalog import load_catalog
 from shimpz._extract_call import ExtractionError
 
 SUMMARY = "Publish DNS changes."
-HEADER = "from shimpz import Context, InputOption, InputRequest, action, domain, identifier, integer, text\n"
+HEADER = "from shimpz import Context, InputOption, InputRequest, action, dns_name, domain, identifier, integer, text\n"
 
 
 def catalog(tmp_path: Path, source: str, *, lib: str | None = None, summary: str = SUMMARY) -> list[dict]:
@@ -90,6 +90,23 @@ def test_scans_lib_modules_and_the_module_import_form(tmp_path: Path) -> None:
     messages = by_msgid(catalog(tmp_path, "print('no copy')\n", lib=lib))
 
     assert messages["Delete {zone}"]["max_length"] == 500
+
+
+def test_extracts_dns_name_parameters_with_default_and_literal_bounds(tmp_path: Path) -> None:
+    source = HEADER + (
+        "ctx.request_approval(\n"
+        '    title=text("Record {name}", name=dns_name(name, max_length=60)),\n'
+        '    description=text("Authorize the record {name}.", name=dns_name(name)),\n'
+        ")\n"
+    )
+    lib = 'import shimpz\n\nCHECK = shimpz.text("Check {name}", name=shimpz.dns_name(n, max_length=40), max_length=500)\n'
+
+    messages = by_msgid(catalog(tmp_path, source, lib=lib))
+
+    assert messages["Record {name}"]["params"] == [{"name": "name", "kind": "dns_name", "max_length": 60}]
+    assert messages["Authorize the record {name}."]["params"] == [{"name": "name", "kind": "dns_name", "max_length": 253}]
+    assert messages["Check {name}"]["params"] == [{"name": "name", "kind": "dns_name", "max_length": 40}]
+    refused(tmp_path, HEADER + "x = text('R {n}', n=dns_name(n, max_length=254), max_length=500)\n", "from 1 to 253")
 
 
 def test_admits_other_shimpz_import_spellings(tmp_path: Path) -> None:

@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 import pytest
-from shimpz import Context, InputOption, InputRequest, Param, Text, domain, integer, text
+from shimpz import Context, InputOption, InputRequest, Param, Text, dns_name, domain, integer, text
 from shimpz._human import HumanRequestSuspension, StoredInputRejection, _fingerprint
 from shimpz.context import ActionDeclaration
 
@@ -49,6 +49,7 @@ COPY = (
 )
 PUBLISH = text("Publish {count} changes to {zone}", count=integer(3, digits=2), zone=domain("example.com", max_length=60))
 LONG = text("Explain the change in detail.")
+RECORD = "Authorize the record {name}."
 
 
 def entry(copy: Text, max_length: int = 80) -> dict[str, object]:
@@ -60,7 +61,12 @@ def entry(copy: Text, max_length: int = 80) -> dict[str, object]:
     }
 
 
-MESSAGES = [*(entry(text(item)) for item in COPY), entry(PUBLISH), entry(LONG, 500)]
+MESSAGES = [
+    *(entry(text(item)) for item in COPY),
+    entry(PUBLISH),
+    entry(LONG, 500),
+    entry(text(RECORD, name=dns_name("_dmarc")), 500),
+]
 
 
 def declared(*capabilities: str, stored_inputs: tuple[str, ...] = ()) -> ActionDeclaration:
@@ -374,6 +380,24 @@ def test_matches_published_request_vectors(case: dict[str, object]) -> None:
     frame = captured.value.request
     assert {key: item for key, item in frame.items() if key != "fingerprint"} == request
     assert frame["fingerprint"] == _fingerprint(request)
+
+
+def test_emits_exact_dns_name_references_and_refuses_inexact_names() -> None:
+    def approve(name: str):
+        return lambda context: context.request_approval(title=text("Publish zone"), description=text(RECORD, name=dns_name(name)))
+
+    frame = suspend(Context({}, declared("approval")), approve("_acme-challenge.example.com"))
+    assert frame["description"] == {
+        "message": hashlib.sha256(RECORD.encode()).hexdigest(),
+        "params": {"name": "_acme-challenge.example.com"},
+    }
+    for name in ("*.example.com", "_dmarc.example.com.", "_DMARC.example.com", "-a.example.com", "a" * 64):
+        with pytest.raises(ValueError, match="copy_params"):
+            Context({}, declared("approval")).request_approval(**_record_copy(name))
+
+
+def _record_copy(name: str) -> dict[str, Text]:
+    return {"title": text("Publish zone"), "description": text(RECORD, name=dns_name(name))}
 
 
 def test_emits_parameterized_references_and_refuses_plain_strings() -> None:

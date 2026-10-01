@@ -10,7 +10,7 @@ from pathlib import Path
 from ._extract_call import CopyField, ExtractionError, MessageUse, parse_text_call
 
 _TEXT = "text"
-_HELPERS = frozenset({"integer", "domain", "identifier"})
+_HELPERS = frozenset({"integer", "domain", "dns_name", "identifier"})
 _REQUESTS = frozenset({"InputRequest", "InputOption"})
 _API = frozenset({_TEXT, *_HELPERS})
 

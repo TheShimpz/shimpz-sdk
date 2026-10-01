@@ -11,8 +11,8 @@ from ._protocol.message_catalog_validator import FIELD_BOUNDS, PARAM_BOUNDS
 
 CopyField = str
 Resolve = Callable[[ast.AST], str | None]
-_HELPER_BOUNDS = {"integer": "digits", "domain": "max_length", "identifier": "max_length"}
-_HELPER_DEFAULTS = {"domain": PARAM_BOUNDS["domain"]}
+_HELPER_BOUNDS = {"integer": "digits", "domain": "max_length", "dns_name": "max_length", "identifier": "max_length"}
+_HELPER_DEFAULTS = {"domain": PARAM_BOUNDS["domain"], "dns_name": PARAM_BOUNDS["dns_name"]}
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,7 +57,7 @@ def parse_text_call(
         if kind not in _HELPER_BOUNDS:
             raise fail(
                 f"text() parameter {keyword.arg!r} must be written as shimpz.integer(), shimpz.domain(), "
-                "or shimpz.identifier()"
+                "shimpz.dns_name(), or shimpz.identifier()"
             )
         params.append((keyword.arg, kind, _helper_bound(helper, kind, fail)))  # type: ignore[arg-type]
         helpers.append(helper)  # type: ignore[arg-type]

@@ -68,8 +68,10 @@ summary = text(
   fields, and literal braces are refused, as is a combining mark directly after a placeholder. There is no plural
   syntax: write count-neutral copy such as "Records to delete: {count}.".
 - A parameter is never prose. It is one of `integer(value, digits=N)` (a non-negative integer of at most `N` digits,
-  `N` ≤ 15), `domain(value, max_length=N)` (a lowercase DNS name, default and maximum 253), or
-  `identifier(value, max_length=N)` (an opaque `[A-Za-z0-9][A-Za-z0-9._:-]*` value, `N` ≤ 128). The maximum is a
+  `N` ≤ 15), `domain(value, max_length=N)` (a lowercase DNS name, default and maximum 253),
+  `dns_name(value, max_length=N)` (an exact DNS record name such as `_acme-challenge.example.com` or `_dmarc`:
+  lowercase labels of `[a-z0-9_-]` without edge hyphens, no trailing dot or `*` wildcard, default and maximum
+  253), or `identifier(value, max_length=N)` (an opaque `[A-Za-z0-9][A-Za-z0-9._:-]*` value, `N` ≤ 128). The maximum is a
   literal, and each helper is written directly as a `text()` argument. Text that varies must be separate messages.
 - The template's characters plus every parameter maximum must fit the field: 80 for a title, label, or option
   label, 120 for a placeholder, 160 for an option description, and 500 for a description. A `text()` call written

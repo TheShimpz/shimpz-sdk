@@ -4,7 +4,7 @@ from ._json import strict_loads
 from .action import action
 from .context import Context
 from .human import InputOption, InputRequest
-from .message import Param, Text, domain, identifier, integer, text
+from .message import Param, Text, dns_name, domain, identifier, integer, text
 
 __all__ = [
     "Context",
@@ -13,6 +13,7 @@ __all__ = [
     "Param",
     "Text",
     "action",
+    "dns_name",
     "domain",
     "identifier",
     "integer",
