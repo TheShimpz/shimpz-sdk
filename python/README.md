@@ -10,7 +10,7 @@ pip install shimpz
 ```python
 from typing import TypedDict
 
-from shimpz import Context, InputOption, InputRequest, action
+from shimpz import Context, InputOption, InputRequest, action, domain, text
 
 
 class CreatedDns(TypedDict):
@@ -25,22 +25,54 @@ async def run(zone: str, *, ctx: Context) -> CreatedDns:
     mode = ctx.request_input(
         InputRequest(
             kind="choice",
-            title="Choose the DNS mode",
-            description="The Action needs this decision before it can continue.",
-            label="Mode",
+            title=text("Choose the DNS mode"),
+            description=text("The Action needs this decision before it can continue."),
+            label=text("Mode"),
             options=(
-                InputOption("proxied", "Proxied"),
-                InputOption("dns-only", "DNS only"),
+                InputOption("proxied", text("Proxied")),
+                InputOption("dns-only", text("DNS only")),
             ),
         )
     )
-    ctx.request_approval(
-        title="Create the DNS record",
-        description=f"Create {zone} in {mode} mode.",
-    )
+    if mode == "proxied":
+        description = text("Create a proxied record in {zone}.", zone=domain(zone, max_length=100), max_length=500)
+    else:
+        description = text("Create a DNS-only record in {zone}.", zone=domain(zone, max_length=100), max_length=500)
+    ctx.request_approval(title=text("Create the DNS record"), description=description)
     token = ctx.integrations.cloudflare.access_token
     ...
 ```
+
+## Request copy
+
+Every user-visible request string is English catalog copy written with `shimpz.text`. Team shows it in the person's
+interface language: Developers translates each distinct message once, and request kinds, option values, and
+parameters stay canonical. A plain string is refused.
+
+```python
+text("DNS changes to publish: {count}. Zone: {zone}.", count=integer(n, digits=4), zone=domain(zone, max_length=60))
+```
+
+- The template is an English, NFC string literal written directly in the call. Computed templates, f-strings,
+  concatenation, aliases or re-exports of `text`, and `**params` are refused with a `file:line` diagnostic before
+  any Assistant code is imported. Import with `from shimpz import text, ...` or call `shimpz.text(...)`.
+- A placeholder is a `{name}` field (`[a-z][a-z0-9_]{0,31}`) used exactly once, and each one has a keyword
+  parameter of the same name. Attribute or index access, conversions, format specifications, nested or positional
+  fields, and literal braces are refused, as is a combining mark directly after a placeholder. There is no plural
+  syntax: write count-neutral copy such as "Records to delete: {count}.".
+- A parameter is never prose. It is one of `integer(value, digits=N)` (a non-negative integer of at most `N` digits,
+  `N` ≤ 15), `domain(value, max_length=N)` (a lowercase DNS name, default and maximum 253), or
+  `identifier(value, max_length=N)` (an opaque `[A-Za-z0-9][A-Za-z0-9._:-]*` value, `N` ≤ 128). The maximum is a
+  literal, and each helper is written directly as a `text()` argument. Text that varies must be separate messages.
+- The template's characters plus every parameter maximum must fit the field: 80 for a title, label, or option
+  label, 120 for a placeholder, 160 for an option description, and 500 for a description. A `text()` call written
+  directly as one of those arguments takes its bound; anywhere else it needs a literal `max_length=` of 80, 120,
+  160, or 500, and it can then be used only in fields at least that large.
+- The manifest `summary` joins the catalog, so it has no braces and is NFC.
+
+The generated contract carries the catalog, and each request carries `{"message": id, "params": {...}}`
+references whose fingerprint never depends on the display language. `shimpz assistant run` renders references
+through the English catalog.
 
 Attribute access (`ctx.integrations.cloudflare`) is a convenience for identifier-safe ids; for ids containing hyphens use subscript access, e.g. `ctx.integrations['cloudflare-api'].access_token`.
 
@@ -58,9 +90,9 @@ async def run(*, ctx: Context) -> CreatedDns:
     token = ctx.request_input(
         InputRequest(
             kind="password",
-            title="WhatsApp token",
-            description="Enter the token used by this WhatsApp Action.",
-            label="Token",
+            title=text("WhatsApp token"),
+            description=text("Enter the token used by this WhatsApp Action."),
+            label=text("Token"),
             stored_input="whatsapp-token",
         )
     )
