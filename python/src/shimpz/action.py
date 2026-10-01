@@ -7,6 +7,8 @@ from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass
 from typing import ParamSpec, TypeVar
 
+from .effect import Mutating
+from .idempotency import Idempotency
 from .verifier import Effect, Verifier
 
 _METADATA_ATTRIBUTE = "__shimpz_action__"
@@ -26,6 +28,7 @@ class ActionMetadata:
     human_requests: tuple[str, ...]
     effect: Effect = "mutating"
     verifier: Verifier | None = None
+    idempotency: Idempotency | None = None
 
 
 def action(
@@ -33,13 +36,13 @@ def action(
     integrations: Iterable[str] = (),
     stored_inputs: Iterable[str] = (),
     human_requests: Iterable[str] = (),
-    effect: Effect = "mutating",
-    verifier: Verifier | None = None,
+    effect: Effect | Mutating = "mutating",
 ) -> Callable[[ActionBody], ActionBody]:
     """Declare an async ``run`` function as the Action in its Python file.
 
     ``effect`` is ``"mutating"`` unless the Action is declared ``"read_only"``: it then must have no business side
-    effect such as publishing, deleting, or delivering a message. Only a mutating Action may name a ``verifier``.
+    effect such as publishing, deleting, or delivering a message. ``Mutating(verifier=..., idempotency=...)`` declares
+    a mutating Action together with how Team may verify it and how its provider deduplicates it.
     """
     integration_ids = _validate_integrations(integrations)
     stored_input_ids = _validate_stored_inputs(stored_inputs)
@@ -47,7 +50,10 @@ def action(
     if stored_input_ids and "input:password" not in request_capabilities:
         message = "Action Stored Input requires input:password"
         raise ValueError(message)
-    _validate_effect(effect, verifier)
+    if not isinstance(effect, Mutating) and effect not in ("read_only", "mutating"):
+        message = "Action effect must be read_only, mutating, or shimpz.Mutating"
+        raise ValueError(message)
+    declared = effect if isinstance(effect, Mutating) else Mutating()
 
     def decorate(body: ActionBody) -> ActionBody:
         if body.__name__ != "run":
@@ -66,8 +72,9 @@ def action(
                 integrations=integration_ids,
                 stored_inputs=stored_input_ids,
                 human_requests=request_capabilities,
-                effect=effect,
-                verifier=verifier,
+                effect="read_only" if effect == "read_only" else "mutating",
+                verifier=declared.verifier,
+                idempotency=declared.idempotency,
             ),
         )
         return body
@@ -79,18 +86,6 @@ def get_action_metadata(body: object) -> ActionMetadata | None:
     """Return declaration metadata without maintaining a global registry."""
     metadata = getattr(body, _METADATA_ATTRIBUTE, None)
     return metadata if isinstance(metadata, ActionMetadata) else None
-
-
-def _validate_effect(effect: object, verifier: object) -> None:
-    if effect not in {"read_only", "mutating"}:
-        message = "Action effect must be read_only or mutating"
-        raise ValueError(message)
-    if verifier is not None and not isinstance(verifier, Verifier):
-        message = "Action verifier must be a shimpz.Verifier"
-        raise TypeError(message)
-    if verifier is not None and effect != "mutating":
-        message = "only a mutating Action may declare a verifier"
-        raise ValueError(message)
 
 
 def _validate_integrations(integrations: Iterable[str]) -> tuple[str, ...]:

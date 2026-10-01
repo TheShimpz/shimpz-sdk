@@ -6,6 +6,7 @@ mod contract;
 mod contract_validation;
 mod error;
 mod help_url;
+mod idempotency;
 mod manifest;
 mod pattern;
 mod pattern_bound;

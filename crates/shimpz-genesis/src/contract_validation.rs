@@ -192,5 +192,19 @@ fn validate_action_references<'a>(
             "Action references an undeclared Stored Input",
         ));
     }
+    let idempotency_provider = action
+        .idempotency()
+        .and_then(|declaration| declaration["provider"].as_str());
+    if idempotency_provider.is_some_and(|host| {
+        !manifest
+            .network
+            .allowed_hosts
+            .iter()
+            .any(|allowed| allowed == host)
+    }) {
+        return Err(ContractError::new(
+            "Action idempotency provider is not an allowed host",
+        ));
+    }
     Ok(())
 }

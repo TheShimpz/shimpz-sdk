@@ -49,6 +49,7 @@ struct ActionInput {
     output_schema: Value,
     effect: Value,
     verifier: Option<Value>,
+    idempotency: Option<Value>,
 }
 
 fn build(actions: Value) -> Result<AssistantContract, String> {
@@ -72,6 +73,7 @@ fn build(actions: Value) -> Result<AssistantContract, String> {
                 input.output_schema,
             )
             .and_then(|action| action.with_effect(effect, input.verifier))
+            .and_then(|action| action.with_idempotency(input.idempotency))
             .map_err(|error| error.to_string())
         })
         .collect::<Result<Vec<_>, String>>()?;
@@ -113,4 +115,19 @@ fn an_action_is_mutating_until_it_declares_otherwise() {
     let encoded = serde_json::to_value(&read_only).expect("Action JSON");
     assert_eq!(encoded["effect"], "read_only");
     assert!(encoded.get("verifier").is_none());
+}
+
+#[test]
+fn an_idempotency_provider_must_be_an_allowed_host() {
+    let mut actions: Value = serde_json::from_str::<Vectors>(VECTORS)
+        .expect("vectors")
+        .cases
+        .into_iter()
+        .find(|case| case.name == "mutating Action declaring provider idempotency")
+        .expect("idempotency vector")
+        .actions;
+    assert!(build(actions.clone()).is_ok());
+    actions[0]["idempotency"]["provider"] = json!("api.other.example");
+    let error = build(actions).expect_err("undeclared provider host");
+    assert!(error.contains("not an allowed host"), "{error}");
 }

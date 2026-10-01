@@ -18,6 +18,7 @@ from . import _native
 from ._catalog import load_catalog
 from ._schema import JsonSchema, compile_action_schemas
 from .action import ActionBody, get_action_metadata
+from .idempotency import Idempotency
 from .verifier import Effect, Verifier
 
 _ACTION_FILENAME = re.compile(r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)*\.py$")
@@ -36,6 +37,7 @@ class ActionDefinition:
     body: ActionBody
     effect: Effect = "mutating"
     verifier: Verifier | None = None
+    idempotency: Idempotency | None = None
 
     def contract_input(self) -> dict[str, object]:
         """Return the language-neutral Genesis input."""
@@ -50,6 +52,8 @@ class ActionDefinition:
         }
         if self.verifier is not None:
             value["verifier"] = self.verifier.contract()
+        if self.idempotency is not None:
+            value["idempotency"] = self.idempotency.contract()
         return value
 
 
@@ -181,6 +185,7 @@ def _load_action(path: Path, project_root: Path) -> ActionDefinition:
             body=body,
             effect=metadata.effect,
             verifier=metadata.verifier,
+            idempotency=metadata.idempotency,
         )
     finally:
         sys.modules.pop(module_name, None)

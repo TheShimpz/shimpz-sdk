@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 from _fixtures import write_icon
-from shimpz import Verifier, action, from_input, from_operation_id
+from shimpz import Idempotency, Mutating, Verifier, action, from_input, from_operation_id
 from shimpz._native import build_contract
 from shimpz._project import AssistantProject
 from shimpz.action import get_action_metadata
@@ -37,7 +37,7 @@ SUMMARY = "Manage DNS records."
 CREATE = """
 from typing import TypedDict
 
-from shimpz import Verifier, action, from_input, from_operation_id
+from shimpz import Idempotency, Mutating, Verifier, action, from_input, from_operation_id
 
 
 class Record(TypedDict):
@@ -45,12 +45,21 @@ class Record(TypedDict):
 
 
 @action(
-    effect="mutating",
-    verifier=Verifier(
-        action="find-record",
-        inputs={"zone": from_input("/zone"), "operation": from_operation_id()},
-        outcome="/outcome",
-        result="/record",
+    effect=Mutating(
+        idempotency=Idempotency(
+            provider="api.example.com",
+            key_location="header",
+            key_name="Idempotency-Key",
+            scope="account",
+            retention_seconds=86_400,
+            same_payload_required=True,
+        ),
+        verifier=Verifier(
+            action="find-record",
+            inputs={"zone": from_input("/zone"), "operation": from_operation_id()},
+            outcome="/outcome",
+            result="/record",
+        ),
     ),
 )
 async def run(zone: str, name: str) -> Record:
@@ -112,8 +121,16 @@ def test_the_contract_carries_the_declared_effect_and_verifier(tmp_path: Path) -
         "outcome": "/outcome",
         "result": "/record",
     }
+    assert create["idempotency"] == {
+        "provider": "api.example.com",
+        "key": {"location": "header", "name": "Idempotency-Key"},
+        "scope": "account",
+        "retention_seconds": 86_400,
+        "same_payload_required": True,
+    }
     assert find["effect"] == "read_only"
     assert "verifier" not in find
+    assert "idempotency" not in find
     assert find["output_schema"]["properties"]["outcome"] == {
         "type": "string",
         "enum": ["occurred", "not_occurred", "inconclusive"],
@@ -134,22 +151,17 @@ def test_genesis_refuses_a_mutating_verifier(tmp_path: Path) -> None:
         project.contract()
 
 
-@pytest.mark.parametrize("effect", ["write", "", None])
+@pytest.mark.parametrize("effect", ["write", "", None, ["mutating"]])
 def test_rejects_an_unknown_effect(effect: object) -> None:
-    with pytest.raises(ValueError, match="read_only or mutating"):
+    with pytest.raises(ValueError, match=r"read_only, mutating, or shimpz\.Mutating"):
         action(effect=effect)  # type: ignore[arg-type]
 
 
-def test_rejects_a_verifier_on_a_read_only_action() -> None:
-    verifier = Verifier(action="find", inputs={"operation": from_operation_id()}, outcome="/outcome", result="/r")
-
-    with pytest.raises(ValueError, match="only a mutating Action"):
-        action(effect="read_only", verifier=verifier)
-
-
-def test_rejects_a_verifier_that_is_not_declared_with_the_sdk() -> None:
+def test_mutating_declarations_are_sdk_values() -> None:
     with pytest.raises(TypeError, match=r"shimpz\.Verifier"):
-        action(verifier={"action": "find"})  # type: ignore[arg-type]
+        Mutating(verifier={"action": "find"})  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match=r"shimpz\.Idempotency"):
+        Mutating(idempotency=IDEMPOTENCY)  # type: ignore[arg-type]
 
 
 @pytest.mark.parametrize(
@@ -219,3 +231,67 @@ def test_native_contract_generation_matches_every_action_effect_vector() -> None
         else:
             admitted = True
         assert admitted == case["valid"], case["name"]
+
+
+def test_genesis_refuses_a_verifier_that_cannot_identify_the_operation(tmp_path: Path) -> None:
+    find = FIND.replace("zone: str, operation: str", "zone: str")
+    uncorrelated = CREATE.replace(
+        'inputs={"zone": from_input("/zone"), "operation": from_operation_id()}', 'inputs={"zone": from_input("/zone")}'
+    )
+    root = tmp_path / "dns"
+    _project(root, find)
+    (root / "actions" / "create_record.py").write_text(uncorrelated, encoding="utf-8")
+
+    with pytest.raises(ValueError, match="do not identify the operation"):
+        AssistantProject.load(root).contract()
+
+
+def test_genesis_refuses_an_idempotency_provider_outside_the_allowed_hosts(tmp_path: Path) -> None:
+    root = tmp_path / "dns"
+    _project(root)
+    source = (root / "actions" / "create_record.py").read_text(encoding="utf-8")
+    (root / "actions" / "create_record.py").write_text(source.replace("api.example.com", "api.other.example"), "utf-8")
+
+    with pytest.raises(ValueError, match="not an allowed host"):
+        AssistantProject.load(root).contract()
+
+
+IDEMPOTENCY = {
+    "provider": "api.example.com",
+    "key_location": "header",
+    "key_name": "Idempotency-Key",
+    "scope": "account",
+    "retention_seconds": 86_400,
+    "same_payload_required": True,
+}
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"provider": "localhost"},
+        {"provider": "API.example.com"},
+        {"key_location": "cookie"},
+        {"key_name": "Idempotency Key"},
+        {"scope": "global"},
+        {"retention_seconds": 59},
+        {"retention_seconds": 31_536_001},
+        {"retention_seconds": True},
+        {"same_payload_required": "yes"},
+    ],
+)
+def test_rejects_an_invalid_idempotency_declaration(changes: dict[str, object]) -> None:
+    with pytest.raises(ValueError, match="Idempotency declaration is invalid"):
+        Idempotency(**{**IDEMPOTENCY, **changes})  # type: ignore[arg-type]
+
+
+def test_a_mutating_declaration_reaches_the_action_metadata() -> None:
+    idempotency = Idempotency(**IDEMPOTENCY)  # type: ignore[arg-type]
+
+    @action(effect=Mutating(idempotency=idempotency))
+    async def run() -> None:
+        pass
+
+    metadata = get_action_metadata(run)
+    assert metadata is not None
+    assert (metadata.effect, metadata.verifier, metadata.idempotency) == ("mutating", None, idempotency)

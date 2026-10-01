@@ -2,8 +2,8 @@
 //!
 //! An Action is `read_only` or `mutating`. A `mutating` Action may name one
 //! non-interactive `read_only` Action of the same contract as its verifier,
-//! with exact typed input bindings and the output positions of its outcome
-//! and recovered result.
+//! with exact typed input bindings correlated with the operation and the
+//! output positions of its outcome and recovered result.
 
 use std::collections::BTreeMap;
 
@@ -16,7 +16,6 @@ const OUTCOMES: [&str; 3] = ["inconclusive", "not_occurred", "occurred"];
 const MAX_POINTER_CHARS: usize = 256;
 const MAX_BINDINGS: usize = 16;
 const MAX_BINDING_NAME_CHARS: usize = 128;
-
 /// Validates one Action's own effect declaration and verifier shape.
 pub(crate) fn validate_declaration(
     effect: &str,
@@ -57,7 +56,7 @@ pub(crate) fn validate_verifiers(actions: &[Value]) -> Result<(), ContractError>
         }
         if !bindings_resolve(verifier, action, target) {
             return Err(ContractError::new(
-                "Action verifier inputs do not match their bindings",
+                "Action verifier inputs do not match their bindings or do not identify the operation",
             ));
         }
         if !outcome_admitted(verifier, target) || !result_admitted(verifier, action, target) {
@@ -125,11 +124,34 @@ fn bindings_resolve(verifier: &Value, action: &Value, target: &Value) -> bool {
         return false;
     };
     required.iter().all(|name| bindings.contains_key(*name))
+        && correlated(bindings, &action["input_schema"])
         && bindings.iter().all(|(name, binding)| {
             properties.get(name).is_some_and(|property| {
                 binding_resolves(binding, &action["input_schema"], property)
             })
         })
+}
+
+/// Binds the original `operation_id`, or every required top-level member of the original input whole.
+fn correlated(bindings: &serde_json::Map<String, Value>, source: &Value) -> bool {
+    if bindings
+        .values()
+        .any(|binding| binding["from"].as_str() == Some("operation_id"))
+    {
+        return true;
+    }
+    let whole: Vec<String> = bindings
+        .values()
+        .filter_map(|binding| pointer_tokens(&binding["pointer"]))
+        .filter(|tokens| tokens.len() == 1)
+        .flatten()
+        .collect();
+    required_names(source).is_some_and(|required| {
+        !required.is_empty()
+            && required
+                .iter()
+                .all(|name| whole.iter().any(|bound| bound == name))
+    })
 }
 
 fn binding_resolves(binding: &Value, source: &Value, destination: &Value) -> bool {

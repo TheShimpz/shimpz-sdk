@@ -4,6 +4,7 @@ use serde_json::Value;
 use crate::action_effect::{validate_declaration, validate_verifiers};
 use crate::catalog::{sha256_hex, validate_messages};
 use crate::contract_validation::{nodes_within, validate_action, validate_catalog};
+use crate::idempotency::validate_idempotency;
 use crate::{AssistantManifest, ContractError, Message, SPEC_VERSION};
 
 const MAX_CONTRACT_BYTES: usize = 512 * 1024;
@@ -24,6 +25,8 @@ pub struct ActionContract {
     effect: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     verifier: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    idempotency: Option<Value>,
 }
 
 impl ActionContract {
@@ -64,6 +67,7 @@ impl ActionContract {
             output_schema,
             effect: "mutating".to_owned(),
             verifier: None,
+            idempotency: None,
         })
     }
 
@@ -85,6 +89,26 @@ impl ActionContract {
         self.effect = effect;
         self.verifier = verifier;
         Ok(self)
+    }
+
+    /// Declare how the provider honors the `operation_id` as an idempotency key.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for a declaration on a `read_only` Action or one whose
+    /// closed shape, provider host, key, scope, retention, or payload rule is
+    /// invalid. That the provider is an allowed host is checked when the
+    /// contract is built.
+    pub fn with_idempotency(mut self, idempotency: Option<Value>) -> Result<Self, ContractError> {
+        validate_idempotency(&self.effect, idempotency.as_ref())?;
+        self.idempotency = idempotency;
+        Ok(self)
+    }
+
+    /// Return the declared idempotency, if any.
+    #[must_use]
+    pub const fn idempotency(&self) -> Option<&Value> {
+        self.idempotency.as_ref()
     }
 
     /// Return the declared effect class: `read_only` or `mutating`.

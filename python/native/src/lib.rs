@@ -20,6 +20,8 @@ struct ActionInput {
     effect: String,
     #[serde(default)]
     verifier: Option<Value>,
+    #[serde(default)]
+    idempotency: Option<Value>,
 }
 
 #[derive(Deserialize)]
@@ -76,6 +78,7 @@ fn build_contract(
                 input.output_schema,
             )
             .and_then(|action| action.with_effect(input.effect, input.verifier))
+            .and_then(|action| action.with_idempotency(input.idempotency))
             .map_err(value_error)
         })
         .collect::<PyResult<Vec<_>>>()?;

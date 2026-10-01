@@ -131,12 +131,13 @@ shows it as the link to create the key when it asks for the missing value.
 
 Every Action is `mutating` unless it declares `effect="read_only"`, a reviewed promise that it publishes, deletes,
 or delivers nothing. Team treats a failed mutating Action as possibly applied, so it never repeats one on its own.
-A mutating Action may name a read-only Action of the same Assistant that reports whether its effect occurred:
+`effect=Mutating(...)` declares a mutating Action together with a read-only Action of the same Assistant that reports
+whether its effect occurred:
 
 ```python
 from typing import NotRequired, TypedDict
 
-from shimpz import VerificationOutcome, Verifier, action, from_input, from_operation_id
+from shimpz import Mutating, VerificationOutcome, Verifier, action, from_input, from_operation_id
 
 
 class Record(TypedDict):
@@ -144,11 +145,13 @@ class Record(TypedDict):
 
 
 @action(
-    verifier=Verifier(
-        action="find-record",
-        inputs={"zone": from_input("/zone"), "operation": from_operation_id()},
-        outcome="/outcome",
-        result="/record",
+    effect=Mutating(
+        verifier=Verifier(
+            action="find-record",
+            inputs={"zone": from_input("/zone"), "operation": from_operation_id()},
+            outcome="/outcome",
+            result="/record",
+        ),
     ),
 )
 async def run(zone: str, name: str) -> Record: ...
@@ -166,10 +169,34 @@ async def run(zone: str, operation: str) -> Evidence: ...
 
 Each binding copies one original input, addressed by an RFC 6901 pointer through required fields, into a verifier
 parameter of exactly the same type, or the original `operation_id` into a plain `str` parameter, and every verifier
-parameter is bound. `outcome` points to a required `VerificationOutcome` field, and `result` points to the recovered
+parameter is bound. The bindings must identify the exact operation: bind `from_operation_id()`, or bind every
+required parameter of the verified Action whole (`from_input("/name")`). `outcome` points to a required `VerificationOutcome` field, and `result` points to the recovered
 result, whose type is exactly the verified Action's return type. Report `not_occurred` only for authoritative terminal
-absence; anything uncertain is `inconclusive`. The verifier declares no human request, or only the password request
+absence: the provider authoritatively reports that this operation does not exist and can no longer complete. Anything
+else, including an absence that may still be in flight or not yet consistent, is `inconclusive`. The verifier declares no human request, or only the password request
 of its own Stored Input.
+
+When the provider deduplicates requests by key, send `ctx.operation_id` as that key and declare how the provider
+honors it; without the declaration Team relies on no provider idempotency:
+
+```python
+from shimpz import Idempotency, Mutating, action
+
+
+@action(
+    effect=Mutating(
+        idempotency=Idempotency(
+            provider="api.example.com",  # one of the manifest's allowed hosts
+            key_location="header",  # or "query" or "body"
+            key_name="Idempotency-Key",
+            scope="account",  # or "endpoint"
+            retention_seconds=86_400,
+            same_payload_required=True,
+        ),
+    ),
+)
+async def run(zone: str, name: str) -> Record: ...
+```
 
 `ctx.operation_id` is the stable id Team assigns to one logical Action operation: the same value on every replay and
 permitted retry, and a new value for a new run. Send it as a provider idempotency key when the provider supports one,
