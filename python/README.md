@@ -214,7 +214,9 @@ registered with `ctx.register_secret(...)`, in any letter case and in their comm
 encodings, plus text shaped like credentials, keys, tokens, or URL user information. A host that held a secret is
 dropped, and text longer than 64 Ki characters is withheld rather than partially checked. Register any
 secret the Action derives or acquires, such as a session token obtained with a Stored Input. A failure is never proof
-that nothing happened: a mutating Action's failure stays uncertain until its verifier settles it. Do not print from an
-Action; printed output is not part of the result, and Team treats any diagnostic stream output as a transport fault.
+that nothing happened: a mutating Action's failure stays uncertain until its verifier settles it. What an Action prints,
+logs, or warns through Python's streams during the invocation is discarded and never reaches Team. Bytes written
+below those streams, such as native writes or a handler bound to the original stream at import time, still reach the
+process streams, and Team treats them as a transport fault.
 
 The native `_native` module is private and may not be imported by Assistants.

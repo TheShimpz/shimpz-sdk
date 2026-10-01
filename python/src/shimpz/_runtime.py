@@ -5,8 +5,8 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import inspect
+import io
 import json
-import sys
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
@@ -18,6 +18,19 @@ from ._project import ActionDefinition, AssistantProject
 from .context import ActionDeclaration, Context
 
 _MAX_VALUE_BYTES = 512 * 1_024
+
+
+class _Discard(io.TextIOBase):
+    """A non-buffering text sink that keeps nothing an Action writes."""
+
+    def writable(self) -> bool:
+        return True
+
+    def write(self, text: str) -> int:
+        return len(text)
+
+
+_DISCARD = _Discard()
 
 
 class ActionFailure(Exception):
@@ -73,7 +86,10 @@ async def invoke_action(
     arguments = dict(input_value)
     if "ctx" in inspect.signature(definition.body).parameters:
         arguments["ctx"] = context
-    with contextlib.redirect_stdout(sys.stderr):
+    # Ordinary Action output is discarded so it can neither forge the protocol frame nor turn a handled failure into
+    # a transport fault. Bytes written past Python's streams, such as native descriptor writes or a handler bound to
+    # the original stream before invocation, still reach the process streams and stay transport faults.
+    with contextlib.redirect_stdout(_DISCARD), contextlib.redirect_stderr(_DISCARD):
         try:
             result = (await asyncio.gather(definition.body(**arguments), return_exceptions=True))[0]
         except (SystemExit, KeyboardInterrupt) as error:

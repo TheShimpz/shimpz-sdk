@@ -56,6 +56,28 @@ async def run(name: str) -> Result:
     raise LookupError(f"zone {name} is not delegated to this account")
 """
 
+CHATTY_FAILING_ACTION = """
+import logging
+import sys
+import warnings
+from typing import TypedDict
+
+from shimpz import action
+
+
+class Result(TypedDict):
+    greeting: str
+
+
+@action()
+async def run(name: str) -> Result:
+    print("CHATTER-ON-STDOUT")
+    print("CHATTER-ON-STDERR", file=sys.stderr)
+    logging.getLogger("assistant").warning("CHATTER-IN-LOGGING")
+    warnings.warn("CHATTER-IN-WARNINGS", stacklevel=1)
+    raise LookupError(f"zone {name} is not delegated to this account")
+"""
+
 PRINTING_ACTION = """
 from typing import TypedDict
 
@@ -154,8 +176,19 @@ def test_a_handled_failure_is_one_stdout_frame_with_empty_stderr(tmp_path: Path)
     assert result.stdout.count("\n") == 1
 
 
+def test_printing_logging_and_warning_do_not_turn_a_failure_into_a_transport_fault(tmp_path: Path) -> None:
+    result = _invoke(_project(tmp_path / "assistant", CHATTY_FAILING_ACTION))
+
+    assert result.returncode == 0
+    assert result.stderr == ""
+    assert json.loads(result.stdout)["failure"]["message"] == "zone Ada is not delegated to this account"
+    assert "CHATTER" not in result.stdout
+
+
 def test_printing_action_returns_only_validated_json(tmp_path: Path) -> None:
     result = _invoke(_project(tmp_path / "assistant", PRINTING_ACTION))
+
+    assert result.stderr == ""
 
     assert result.returncode == 0
     assert json.loads(result.stdout) == {
