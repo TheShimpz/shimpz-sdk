@@ -41,6 +41,21 @@ async def run(name: str) -> Result:
     raise SystemExit(0)
 """
 
+FAILING_ACTION = """
+from typing import TypedDict
+
+from shimpz import action
+
+
+class Result(TypedDict):
+    greeting: str
+
+
+@action()
+async def run(name: str) -> Result:
+    raise LookupError(f"zone {name} is not delegated to this account")
+"""
+
 PRINTING_ACTION = """
 from typing import TypedDict
 
@@ -117,6 +132,26 @@ def test_system_exit_cannot_forge_stdout(tmp_path: Path) -> None:
 
     assert result.returncode != 0
     assert "FORGED-STDOUT-BYTES" not in result.stdout
+
+
+def test_a_handled_failure_is_one_stdout_frame_with_empty_stderr(tmp_path: Path) -> None:
+    result = _invoke(_project(tmp_path / "assistant", FAILING_ACTION))
+
+    assert result.returncode == 0
+    assert result.stderr == ""
+    assert json.loads(result.stdout) == {
+        "type": "failure",
+        "failure": {
+            "error_type": "LookupError",
+            "message": "zone Ada is not delegated to this account",
+            "provider": None,
+            "http_status": None,
+            "response_excerpt": None,
+            "redacted": False,
+            "truncated": False,
+        },
+    }
+    assert result.stdout.count("\n") == 1
 
 
 def test_printing_action_returns_only_validated_json(tmp_path: Path) -> None:

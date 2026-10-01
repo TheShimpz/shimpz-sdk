@@ -15,6 +15,8 @@ from .human import InputRequest
 from .message import Text
 
 Authentication = Literal["password", "totp", "passkey"]
+_MAX_SECRET = 16_384
+_MAX_SECRETS = 64
 # The canonical lowercase text of a random RFC 9562 version 4 UUID, exactly as Team mints it.
 _OPERATION_ID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}")
 
@@ -83,7 +85,7 @@ class ActionDeclaration:
 class Context:
     """Trusted integrations and attributable human requests for one invocation."""
 
-    __slots__ = ("_catalog", "_human", "_operation_id", "_stored_input_ids", "integrations")
+    __slots__ = ("_catalog", "_human", "_operation_id", "_secrets", "_stored_input_ids", "integrations")
 
     def __init__(
         self,
@@ -109,6 +111,7 @@ class Context:
         if operation_id is not None and not valid_operation_id(operation_id):
             raise ValueError("Action operation_id is invalid")
         self._operation_id = operation_id
+        self._secrets: list[str] = []
         self._stored_input_ids = frozenset(declared)
         self._catalog = index_catalog(reviewed.messages)
         self._human = HumanRequestRuntime(reviewed.human_requests, responses, values, self._catalog)
@@ -124,6 +127,15 @@ class Context:
         if self._operation_id is None:
             raise RuntimeError("Action operation_id exists only during a Team invocation")
         return self._operation_id
+
+    def register_secret(self, value: str) -> None:
+        """Protect one secret the Action derived or acquired, so no failure diagnostic can disclose it.
+
+        Integration tokens, Stored Input values, and password responses are already protected.
+        """
+        if not isinstance(value, str) or not 1 <= len(value) <= _MAX_SECRET or len(self._secrets) >= _MAX_SECRETS:
+            raise ValueError("Action secret registration is invalid")
+        self._secrets.append(value)
 
     def request_approval(self, *, title: Text, description: Text) -> None:
         """Pause until the Team's authenticated human approves the described action."""

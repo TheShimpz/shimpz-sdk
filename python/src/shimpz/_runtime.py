@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from . import _native
+from ._failure import failure_envelope
 from ._human import HumanRequestSuspension, StoredInputRejection
 from ._project import ActionDefinition, AssistantProject
 from .context import ActionDeclaration, Context
@@ -19,8 +20,12 @@ from .context import ActionDeclaration, Context
 _MAX_VALUE_BYTES = 512 * 1_024
 
 
-class ActionExecutionError(RuntimeError):
-    """An Action failed without exposing its input or integration secrets."""
+class ActionFailure(Exception):
+    """Private control signal carrying one sanitized, bounded failure envelope."""
+
+    def __init__(self, envelope: dict[str, object]) -> None:
+        super().__init__("Action failed")
+        self.envelope = envelope
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,14 +78,28 @@ async def invoke_action(
             result = (await asyncio.gather(definition.body(**arguments), return_exceptions=True))[0]
         except (SystemExit, KeyboardInterrupt) as error:
             result = error
-    if isinstance(result, BaseException):
-        if isinstance(result, HumanRequestSuspension | StoredInputRejection):
-            raise result
-        message = "Action execution failed"
-        raise ActionExecutionError(message) from None
-    context._finish(result)
-    _validate_value(definition.output_schema, result, "Action result")
+    if isinstance(result, HumanRequestSuspension | StoredInputRejection):
+        raise result
+    failure = result if isinstance(result, BaseException) else None
+    if failure is None:
+        try:
+            context._finish(result)
+            _validate_value(definition.output_schema, result, "Action result")
+        except ValueError as error:
+            failure = error
+    if failure is not None:
+        raise ActionFailure(failure_envelope(failure, _secrets(invocation, context))) from None
     return result
+
+
+def _secrets(invocation: ActionInvocation, context: Context) -> list[str]:
+    """Every secret this invocation received or the Action registered, for exact failure redaction."""
+    passwords = [
+        response["value"]
+        for response in invocation.responses
+        if response.get("kind") == "input:password" and isinstance(response.get("value"), str)
+    ]
+    return [*invocation.integrations.values(), *invocation.stored_inputs.values(), *passwords, *context._secrets]
 
 
 def _find_action(project: AssistantProject, action_id: str) -> ActionDefinition:

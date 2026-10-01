@@ -14,7 +14,7 @@ from ._json import strict_loads
 from ._language_pack import read_pack, verify_pack
 from ._project import AssistantProject, load_catalog_document
 from ._reference import render_request
-from ._runtime import ActionExecutionError, ActionInvocation, invoke_action
+from ._runtime import ActionFailure, ActionInvocation, invoke_action
 from .context import valid_operation_id
 
 _MAX_REQUEST_BYTES = 512 * 1_024
@@ -25,7 +25,7 @@ def main(arguments: list[str] | None = None) -> int:
     args = sys.argv[1:] if arguments is None else arguments
     try:
         output = dispatch(args, sys.stdin)
-    except (OSError, UnicodeError, TypeError, ValueError, ActionExecutionError) as error:
+    except (OSError, UnicodeError, TypeError, ValueError) as error:
         sys.stderr.write(f"shimpz: {error}\n")
         return 1
     except SystemExit, KeyboardInterrupt:
@@ -68,6 +68,8 @@ def _invoke(root: Path, action_id: str, source: TextIO) -> str:
         return _json({"type": "request", "request": suspension.request})
     except StoredInputRejection as rejection:
         return _json({"type": "stored_input_rejected", "stored_input": rejection.stored_input})
+    except ActionFailure as failure:
+        return _json(failure.envelope)
     return _json({"type": "result", "result": result})
 
 

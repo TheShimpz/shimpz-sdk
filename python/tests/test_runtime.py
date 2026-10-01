@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from _fixtures import write_icon
 from shimpz._project import AssistantProject
-from shimpz._runtime import ActionExecutionError, ActionInvocation, invoke_action
+from shimpz._runtime import ActionFailure, ActionInvocation, invoke_action
 
 OPERATION_ID = "6f1c2b8e-3a4d-4c5e-9f60-718293a4b5c6"
 
@@ -118,7 +118,7 @@ def test_redacts_action_exceptions(tmp_path: Path) -> None:
     )
     project = project_at(tmp_path / "assistant", source)
 
-    with pytest.raises(ActionExecutionError, match="Action execution failed") as captured:
+    with pytest.raises(ActionFailure, match="Action failed") as captured:
         asyncio.run(
             invoke_action(
                 project,
@@ -133,3 +133,15 @@ def test_redacts_action_exceptions(tmp_path: Path) -> None:
         )
 
     assert "private-token" not in str(captured.value)
+    assert captured.value.envelope == {
+        "type": "failure",
+        "failure": {
+            "error_type": "RuntimeError",
+            "message": "[REDACTED]",
+            "provider": None,
+            "http_status": None,
+            "response_excerpt": None,
+            "redacted": True,
+            "truncated": False,
+        },
+    }
