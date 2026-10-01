@@ -59,15 +59,11 @@ class AssistantProject:
     def load(cls, root: Path) -> AssistantProject:
         """Discover and validate an Assistant without generating files."""
         resolved = root.resolve()
-        manifest_source = _read_manifest(resolved)
-        _native.validate_manifest(manifest_source)
-        files = _action_files(resolved)
-        _native.validate_source_tree(_source_entries_json(resolved, files))
+        manifest_source, files, messages = _static_source(resolved)
         _native.validate_source_icon((resolved / "icon.png").read_bytes())
-        messages = tuple(load_catalog(resolved, files, _summary(manifest_source)))
         with _import_path(resolved):
             actions = tuple(_load_action(path, resolved) for path in files)
-        return cls(root=resolved, manifest_source=manifest_source, actions=actions, messages=messages)
+        return cls(root=resolved, manifest_source=manifest_source, actions=actions, messages=tuple(messages))
 
     def contract(self) -> str:
         """Build the canonical in-memory contract through Genesis."""
@@ -79,14 +75,17 @@ class AssistantProject:
 
 def load_messages(root: Path) -> list[dict[str, object]]:
     """Return the statically extracted English catalog without importing any Creator code."""
-    resolved = root.resolve()
-    manifest_source = _read_manifest(resolved)
+    return _static_source(root.resolve())[2]
+
+
+def _static_source(root: Path) -> tuple[str, tuple[Path, ...], list[dict[str, object]]]:
+    """Validate the manifest and source tree, then extract the catalog before any Creator code is imported."""
+    manifest_source = _read_manifest(root)
     _native.validate_manifest(manifest_source)
-    return load_catalog(resolved, _action_files(resolved), _summary(manifest_source))
-
-
-def _summary(manifest_source: str) -> str:
-    return tomllib.loads(manifest_source)["shimpz"]["summary"]
+    files = _action_files(root)
+    _native.validate_source_tree(_source_entries_json(root, files))
+    summary = tomllib.loads(manifest_source)["shimpz"]["summary"]
+    return manifest_source, files, load_catalog(root, files, summary)
 
 
 def _read_manifest(root: Path) -> str:
