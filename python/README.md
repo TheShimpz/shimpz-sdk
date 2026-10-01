@@ -72,4 +72,18 @@ provider explicitly rejects the value, call `ctx.reject_stored_input("whatsapp-t
 and lets Team clear only that exact slot. Stored Input values are not available as a Context mapping and must never
 be logged or returned.
 
+A Stored Input declaration in `shimpz.toml` may name the page where a person creates the value:
+
+```toml
+[stored_inputs.whatsapp-token]
+kind = "password"
+label = "WhatsApp token"
+description = "Token used to call the WhatsApp API."
+help_url = "https://business.facebook.com/settings/system-users"
+```
+
+`help_url` is optional. It must be one canonical public `https` URL of at most 2,048 characters with a path and an
+optional query, and no port, credentials, fragment, or dot segment, written exactly as a browser prints it. Team
+shows it as the link to create the key when it asks for the missing value.
+
 The native `_native` module is private and may not be imported by Assistants.

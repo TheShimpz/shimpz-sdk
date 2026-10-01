@@ -129,7 +129,7 @@ fn validate_hosts(hosts: &[String]) -> Result<(), ManifestError> {
     require(valid, "allowed_hosts are invalid")
 }
 
-fn valid_host(host: &str) -> bool {
+pub(crate) fn valid_host(host: &str) -> bool {
     if host.len() > 253 || host.to_ascii_lowercase() != host || !host.contains('.') {
         return false;
     }
@@ -180,6 +180,13 @@ fn validate_stored_inputs(manifest: &AssistantManifest) -> Result<(), ManifestEr
         )?;
         validate_line(&stored_input.label, 80, "stored input label")?;
         validate_line(&stored_input.description, 500, "stored input description")?;
+        require(
+            stored_input
+                .help_url
+                .as_deref()
+                .is_none_or(crate::help_url::valid_help_url),
+            "stored input help_url is invalid",
+        )?;
     }
     Ok(())
 }

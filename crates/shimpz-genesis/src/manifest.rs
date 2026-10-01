@@ -32,6 +32,9 @@ pub struct StoredInputIntent {
     pub(crate) label: String,
     /// Public explanation shown when the value is missing.
     pub(crate) description: String,
+    /// Optional canonical public `https` page where a person creates the value.
+    #[serde(default)]
+    pub(crate) help_url: Option<String>,
 }
 
 impl StoredInputIntent {
@@ -51,6 +54,12 @@ impl StoredInputIntent {
     #[must_use]
     pub fn description(&self) -> &str {
         &self.description
+    }
+
+    /// Return the optional page where a person creates the value.
+    #[must_use]
+    pub fn help_url(&self) -> Option<&str> {
+        self.help_url.as_deref()
     }
 }
 

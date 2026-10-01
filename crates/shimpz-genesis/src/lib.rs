@@ -3,6 +3,7 @@
 mod contract;
 mod contract_validation;
 mod error;
+mod help_url;
 mod manifest;
 mod schema;
 mod source_icon;

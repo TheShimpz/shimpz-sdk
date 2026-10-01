@@ -179,3 +179,38 @@ def test_reports_the_source_of_an_unsupported_typed_dict_field(tmp_path: Path) -
     assert str(failure.value) == (
         "actions/create_dns.py:8: unsupported Action type annotation: field 'created' uses dict[str, str]"
     )
+
+
+STORED_INPUT = """
+[stored_inputs.api-key]
+kind = "password"
+label = "API key"
+description = "Key used to call the provider."
+"""
+
+
+def test_admits_a_canonical_stored_input_key_page(tmp_path: Path) -> None:
+    root = create_project(tmp_path / "assistant")
+    manifest = f'{MANIFEST}{STORED_INPUT}help_url = "https://dash.cloudflare.com/profile/api-tokens"\n'
+    (root / "shimpz.toml").write_text(manifest, encoding="utf-8")
+
+    assert AssistantProject.load(root).actions[0].id == "create-dns"
+
+
+@pytest.mark.parametrize(
+    "help_url",
+    [
+        "http://dash.cloudflare.com/profile",
+        "https://dash.cloudflare.com",
+        "https://dash.cloudflare.com/profile#tokens",
+        "https://user@dash.cloudflare.com/profile",
+        "https://keys.internal/profile",
+    ],
+)
+def test_refuses_a_noncanonical_stored_input_key_page(tmp_path: Path, help_url: str) -> None:
+    root = create_project(tmp_path / "assistant")
+    (root / "shimpz.toml").write_text(f'{MANIFEST}{STORED_INPUT}help_url = "{help_url}"\n', encoding="utf-8")
+
+    with pytest.raises(ValueError, match="help_url is invalid") as error:
+        AssistantProject.load(root)
+    assert help_url not in str(error.value)

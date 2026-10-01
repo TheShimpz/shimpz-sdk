@@ -204,3 +204,34 @@ fn rejects_invalid_stored_input_intent() {
         assert!(AssistantManifest::parse(&source).is_err());
     }
 }
+
+#[test]
+fn exposes_an_optional_canonical_stored_input_key_page() {
+    let manifest = AssistantManifest::parse(VALID).expect("valid manifest");
+    assert_eq!(manifest.stored_inputs()["api-token"].help_url(), None);
+    let source = VALID.replace(
+        "description = \"Token used to call the provider.\"",
+        "description = \"Token used to call the provider.\"\nhelp_url = \"https://dash.cloudflare.com/profile/api-tokens\"",
+    );
+    let manifest = AssistantManifest::parse(&source).expect("valid key page");
+    assert_eq!(
+        manifest.stored_inputs()["api-token"].help_url(),
+        Some("https://dash.cloudflare.com/profile/api-tokens")
+    );
+    for invalid in [
+        "http://dash.cloudflare.com/profile",
+        "https://dash.cloudflare.com",
+        "https://dash.cloudflare.com/profile#tokens",
+        "https://dash.cloudflare.com:8443/profile",
+        "https://keys.internal/profile",
+    ] {
+        let source = VALID.replace(
+            "description = \"Token used to call the provider.\"",
+            &format!(
+                "description = \"Token used to call the provider.\"\nhelp_url = \"{invalid}\""
+            ),
+        );
+        let error = AssistantManifest::parse(&source).expect_err("invalid key page");
+        assert!(!error.to_string().contains(invalid), "{invalid}");
+    }
+}

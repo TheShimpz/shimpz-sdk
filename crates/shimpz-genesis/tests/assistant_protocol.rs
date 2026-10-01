@@ -27,14 +27,14 @@ fn vendored_assistant_protocol_matches_the_pinned_developers_tree() {
     }
     assert_eq!(
         format!("{:x}", Sha256::digest(checksums.as_bytes())),
-        "5329d8ddeaca6100db0aee89a267cfc0f71e91e65f4874d63020fde6580da8ef"
+        "b63ed083a49d7988aa114caf9b3067f188c0450538af4d0f8fb775af6da1146a"
     );
     let upstream: Value =
         serde_json::from_slice(&fs::read(root.join("upstream.json")).expect("upstream identity"))
             .expect("valid upstream identity");
     assert_eq!(
         upstream["commit"],
-        "9e88f315872f644cacf7fc1bb52009d6d067d08b"
+        "60aa95d713e06d6ca423bec26d55b7f5b9dc77fe"
     );
-    assert_eq!(upstream["tree"], "c8317733cb8fc5a158a645480d29b397babe6bd5");
+    assert_eq!(upstream["tree"], "677bd7e186ea1c5af00d2916860e59d6b5691882");
 }
