@@ -314,8 +314,11 @@ fn rejects_empty_and_oversized_action_catalogs() {
 #[test]
 fn rejects_oversized_and_hyphen_actions() {
     let mut properties = serde_json::Map::new();
-    for index in 0..10_000 {
-        properties.insert(format!("p{index}"), json!({"type": "string"}));
+    for index in 0..40 {
+        properties.insert(
+            format!("p{index}"),
+            json!({"type": "string", "description": "x".repeat(4_000)}),
+        );
     }
     let big = json!({
         "type": "object",

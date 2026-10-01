@@ -8,6 +8,8 @@ use crate::validation::valid_id;
 use crate::{AssistantManifest, ContractError};
 
 const MAX_SCHEMA_BYTES: usize = 128 * 1024;
+/// Publication admits at most this many JSON values in one Action schema.
+const MAX_SCHEMA_NODES: usize = 4096;
 const HUMAN_REQUEST_CAPABILITIES: [&str; 11] = [
     "approval",
     "input:text",
@@ -34,6 +36,8 @@ pub(crate) fn validate_action(
 ) -> Result<(), ContractError> {
     validate_action_ids(id, integrations, stored_inputs)?;
     validate_human_requests(stored_inputs, human_requests)?;
+    schema_nodes_within_limit(input_schema)?;
+    schema_nodes_within_limit(output_schema)?;
     validate_root_schema(input_schema)?;
     validate_root_schema(output_schema)?;
     schema_within_limit(input_schema)?;
@@ -102,6 +106,34 @@ fn validate_human_requests(
         ));
     }
     Ok(())
+}
+
+fn schema_nodes_within_limit(schema: &Value) -> Result<(), ContractError> {
+    if nodes_within(schema, MAX_SCHEMA_NODES) {
+        Ok(())
+    } else {
+        Err(ContractError::new("Action schema has too many JSON values"))
+    }
+}
+
+/// Returns whether `value` holds at most `limit` JSON values, counting the value
+/// itself, every array element, and every object member value at any depth.
+/// Member names are not counted separately. The walk stops at the first excess.
+pub(crate) fn nodes_within(value: &Value, limit: usize) -> bool {
+    let mut pending = vec![value];
+    let mut count = 0_usize;
+    while let Some(node) = pending.pop() {
+        count += 1;
+        if count > limit {
+            return false;
+        }
+        match node {
+            Value::Array(items) => pending.extend(items),
+            Value::Object(members) => pending.extend(members.values()),
+            Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {}
+        }
+    }
+    true
 }
 
 fn schema_within_limit(schema: &Value) -> Result<(), ContractError> {

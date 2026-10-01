@@ -53,6 +53,28 @@ def test_builds_contract_through_genesis() -> None:
     assert contract["actions"][0]["id"] == "example"
 
 
+def test_refuses_a_dense_action_schema_before_publication() -> None:
+    dense = {
+        "type": "object",
+        "additionalProperties": False,
+        "required": [],
+        "properties": {"p": {"type": "string", "enum": [f"v{index}" for index in range(4_089)]}},
+    }
+    actions = [
+        {
+            "id": "example",
+            "integrations": [],
+            "stored_inputs": [],
+            "human_requests": [],
+            "input_schema": dense,
+            "output_schema": SCHEMA,
+        }
+    ]
+
+    with pytest.raises(ValueError, match="Action schema has too many JSON values"):
+        _native.build_contract(MANIFEST, json.dumps(actions))
+
+
 def test_validates_private_values_without_leaking_them() -> None:
     schema = {"type": "string", "pattern": "^public$"}
 

@@ -2,10 +2,14 @@ use serde::Serialize;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
-use crate::contract_validation::{validate_action, validate_catalog};
+use crate::contract_validation::{nodes_within, validate_action, validate_catalog};
 use crate::{AssistantManifest, ContractError, SPEC_VERSION};
 
 const MAX_CONTRACT_BYTES: usize = 512 * 1024;
+/// Publication admits at most this many JSON values in one whole contract,
+/// counted like one Action schema's values, so up to 128 Actions cannot add up
+/// to dense data that each per-schema bound would still admit.
+const MAX_CONTRACT_NODES: usize = 32_768;
 
 /// One reviewed Action in the generated machine contract.
 #[derive(Clone, Debug, Serialize, PartialEq)]
@@ -23,8 +27,9 @@ impl ActionContract {
     ///
     /// # Errors
     ///
-    /// Returns an error for an invalid id, duplicated Integration, or schema that
-    /// is not a closed JSON object at its root.
+    /// Returns an error for an invalid id, duplicated Integration, schema with
+    /// more than 4,096 JSON values, or schema that is not a closed JSON object
+    /// at its root.
     pub fn new(
         id: impl Into<String>,
         integrations: Vec<String>,
@@ -91,7 +96,8 @@ impl AssistantContract {
     /// # Errors
     ///
     /// Returns an error for duplicate Actions, undeclared Integrations, unused
-    /// manifest Integrations, or a catalog larger than 512 KiB.
+    /// manifest Integrations, or a catalog larger than 512 KiB or 32,768 JSON
+    /// values.
     pub fn build(
         manifest: &AssistantManifest,
         mut actions: Vec<ActionContract>,
@@ -107,6 +113,13 @@ impl AssistantContract {
             version: SPEC_VERSION,
             actions,
         };
+        let value = serde_json::to_value(&contract)
+            .map_err(|_| ContractError::new("Action contract cannot be serialized"))?;
+        if !nodes_within(&value, MAX_CONTRACT_NODES) {
+            return Err(ContractError::new(
+                "Action contract has too many JSON values",
+            ));
+        }
         if contract.canonical_bytes()?.len() > MAX_CONTRACT_BYTES {
             return Err(ContractError::new("Action contract is too large"));
         }

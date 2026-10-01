@@ -38,7 +38,34 @@ An Action declares at most one authorization capability: plain `approval` or exa
 The Controller revalidates the generated contract without importing Assistant code. It also checks
 that Action ids are unique, paths match ids, Integrations are declared and used, Stored Input lists are sorted and
 unique, every used Stored Input is declared, every nested object schema is closed, and the canonical contract is at
-most 512 KiB.
+most 512 KiB and 32,768 JSON values.
+
+Each Action `input_schema` and `output_schema` must describe a closed object (`"type": "object"` with
+`"additionalProperties": false` at every object position) and must not use a boolean subschema. It must be a valid
+Draft 2020-12 schema checked without retrieving anything, and its compact ASCII-escaped JSON encoding is at most
+128 KiB and 4,096 JSON values. A JSON value bound counts the document itself, every array element, and every object
+member value at any depth, whether it is a subschema, an annotation such as `default` or `examples`, or a literal
+such as `const` or `enum`; member names are not counted separately. At every subschema position, `$ref` names only
+`#` or one direct `#/$defs/<name>` or `#/definitions/<name>` without `/` or `%`, `$dynamicRef` is absent, `$schema` is
+exactly the Draft 2020-12 URI, and `$id` appears only at the root. Property names and `const`, `enum`, `default`, and
+`examples` values are data, never references. Developers refuses a build artifact that Team would refuse, and
+publication is stricter than Team in exactly two ways:
+
+- Subschemas nest at most 32 levels below the root schema.
+- Each `pattern` value and `patternProperties` name nests its syntax tree at most 32 levels deep and uses only this
+  subset of Python `re`: literals, escaped punctuation, `\a`, `\f`, `\n`, `\r`, `\t`, `\v`, `\xHH`, `\uHHHH`, and
+  `\UHHHHHHHH`; `.`, `^`, `$`, `\A`, `\b`, `\B`, `\d`, `\D`, `\s`, `\S`, `\w`, and `\W`; optionally negated bracketed
+  classes of literals, ranges, and those Perl classes, with an unescaped `-` only first or last; alternation; greedy
+  or lazy `*`, `+`, `?`, `{m}`, `{m,}`, and `{m,n}` below 4294967295 applied to a literal, `.`, class, or group;
+  `(...)`, `(?P<name>...)` with an ASCII identifier name, `(?:...)`, and scoped `i`, `m`, or `s` flags that may be
+  negated; and global `i`, `m`, `s`, or `x` flags only as one group at the very start. In `x` mode, whitespace and `#`
+  comments may separate items but not appear inside a class, a hexadecimal escape, a counted repetition or its lazy
+  suffix, or between `(` and `?`, and a comment contains no backslash. Everything else, including lookaround,
+  backreferences, octal and braced escapes, `\z`, Unicode property classes, nested and POSIX classes, class set
+  operations, possessive or nested repetition, and `(?<name>...)`, is refused.
+
+`action-schema-vectors.json` freezes admitted and refused schemas; each case holds in either Action schema
+position.
 
 ## Invocation
 
