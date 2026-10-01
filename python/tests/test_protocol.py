@@ -21,7 +21,12 @@ def test_pinned_mirror_verifies_its_artifacts_and_vectors(
 ) -> None:
     monkeypatch.setattr(sys, "dont_write_bytecode", True)
     monkeypatch.syspath_prepend(str(MIRROR))
-    for name in ("human_request_validator", "message_catalog_validator"):
+    for name in (
+        "action_effect_validator",
+        "failure_validator",
+        "human_request_validator",
+        "message_catalog_validator",
+    ):
         monkeypatch.delitem(sys.modules, name, raising=False)
 
     runpy.run_path(str(MIRROR / "verify.py"), run_name="__main__")
