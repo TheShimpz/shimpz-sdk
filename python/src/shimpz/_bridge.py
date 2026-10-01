@@ -5,11 +5,13 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, TextIO
+from typing import Any, BinaryIO, TextIO
 
 from ._human import HumanRequestSuspension, StoredInputRejection
 from ._json import strict_loads
+from ._language_pack import read_pack, verify_pack
 from ._project import AssistantProject, load_catalog_document
 from ._reference import render_request
 from ._runtime import ActionExecutionError, ActionInvocation, invoke_action
@@ -35,36 +37,36 @@ def main(arguments: list[str] | None = None) -> int:
 
 def dispatch(arguments: list[str], source: TextIO) -> str:
     """Dispatch one private bridge command and return JSON."""
-    if len(arguments) == 2 and arguments[0] == "contract":
-        project = AssistantProject.load(Path(arguments[1]))
-        return project.contract()
     if len(arguments) == 3 and arguments[0] == "invoke":
-        project = AssistantProject.load(Path(arguments[1]))
-        payload = _request(source)
-        try:
-            result = asyncio.run(
-                invoke_action(
-                    project,
-                    arguments[2],
-                    ActionInvocation(
-                        inputs=payload["input"],
-                        integrations=payload["integrations"],
-                        stored_inputs=payload["stored_inputs"],
-                        responses=tuple(payload.get("responses", ())),
-                    ),
-                )
+        return _invoke(Path(arguments[1]), arguments[2], source)
+    command = _PROJECT_COMMANDS.get(arguments[0]) if len(arguments) == 2 else None
+    if command is None:
+        message = "private bridge command is invalid"
+        raise ValueError(message)
+    return command(Path(arguments[1]), source)
+
+
+def _invoke(root: Path, action_id: str, source: TextIO) -> str:
+    project = AssistantProject.load(root)
+    payload = _request(source)
+    try:
+        result = asyncio.run(
+            invoke_action(
+                project,
+                action_id,
+                ActionInvocation(
+                    inputs=payload["input"],
+                    integrations=payload["integrations"],
+                    stored_inputs=payload["stored_inputs"],
+                    responses=tuple(payload.get("responses", ())),
+                ),
             )
-        except HumanRequestSuspension as suspension:
-            return _json({"type": "request", "request": suspension.request})
-        except StoredInputRejection as rejection:
-            return _json({"type": "stored_input_rejected", "stored_input": rejection.stored_input})
-        return _json({"type": "result", "result": result})
-    if len(arguments) == 2 and arguments[0] == "catalog":
-        return _json(load_catalog_document(Path(arguments[1])))
-    if len(arguments) == 2 and arguments[0] == "render":
-        return _json(_render(Path(arguments[1]), source))
-    message = "private bridge command is invalid"
-    raise ValueError(message)
+        )
+    except HumanRequestSuspension as suspension:
+        return _json({"type": "request", "request": suspension.request})
+    except StoredInputRejection as rejection:
+        return _json({"type": "stored_input_rejected", "stored_input": rejection.stored_input})
+    return _json({"type": "result", "result": result})
 
 
 def _render(root: Path, source: TextIO) -> dict[str, Any]:
@@ -78,6 +80,23 @@ def _render(root: Path, source: TextIO) -> dict[str, Any]:
     except (KeyError, TypeError) as error:
         message = "Action human request is invalid"
         raise ValueError(message) from error
+
+
+_PROJECT_COMMANDS: dict[str, Callable[[Path, TextIO], str]] = {
+    "contract": lambda root, _: AssistantProject.load(root).contract(),
+    "catalog": lambda root, _: _json(load_catalog_document(root)),
+    "render": lambda root, source: _json(_render(root, source)),
+    "verify-pack": lambda root, source: _json(verify_pack(root, read_pack(_binary(source)))),
+}
+
+
+def _binary(source: TextIO) -> BinaryIO:
+    """Return the byte stream under a text source, so pack bytes are read exactly."""
+    buffer = getattr(source, "buffer", None)
+    if buffer is None:
+        message = "private bridge request is invalid"
+        raise ValueError(message)
+    return buffer
 
 
 def _bounded_json(source: TextIO) -> object:
@@ -125,8 +144,7 @@ def _valid_stored_inputs(value: object) -> bool:
         isinstance(value, dict)
         and len(value) <= 1
         and all(
-            isinstance(key, str) and isinstance(item, str) and 1 <= len(item) <= 1024
-            for key, item in value.items()
+            isinstance(key, str) and isinstance(item, str) and 1 <= len(item) <= 1024 for key, item in value.items()
         )
     )
 
