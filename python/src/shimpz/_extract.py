@@ -90,7 +90,10 @@ class _Scanner:
             return
         module = "" if node.level else node.module or ""
         names = {alias.name for alias in node.names}
-        if module != "shimpz" and not module.startswith("shimpz."):
+        shimpz_module = module == "shimpz" or module.startswith("shimpz.")
+        if shimpz_module and "*" in names:
+            self._fail(node, "wildcard imports from shimpz are refused; import names explicitly")
+        if not shimpz_module:
             if _TEXT in names:
                 self._fail(node, "import text only with 'from shimpz import text'; re-exports are refused")
             return
@@ -98,12 +101,14 @@ class _Scanner:
             self._fail(node, "import text and its parameter kinds with 'from shimpz import ...'")
         if module == "shimpz.human":
             self._bind_names(node, _REQUESTS)
-        if module != "shimpz":
-            return
+        if module == "shimpz":
+            self._bind_package(node)
+
+    def _bind_package(self, node: ast.ImportFrom) -> None:
         for alias in node.names:
             if alias.name == "message":
                 self._fail(node, "import text from shimpz itself, not through the shimpz.message module")
-            if alias.name == "*" or (alias.name in _API and alias.asname not in {None, alias.name}):
+            if alias.name in _API and alias.asname not in {None, alias.name}:
                 self._fail(node, "import text and its parameter kinds from shimpz by name, without an alias")
         self._bind_names(node, _API | _REQUESTS)
 
