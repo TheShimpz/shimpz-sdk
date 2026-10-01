@@ -8,6 +8,8 @@ from _fixtures import write_icon
 from shimpz._project import AssistantProject
 from shimpz._runtime import ActionExecutionError, ActionInvocation, invoke_action
 
+OPERATION_ID = "6f1c2b8e-3a4d-4c5e-9f60-718293a4b5c6"
+
 MANIFEST = """
 [shimpz]
 spec = 1
@@ -64,6 +66,7 @@ def test_invokes_with_validated_inputs_and_redacted_integrations(tmp_path: Path)
                 inputs={"zone": "example.com"},
                 integrations={"cloudflare": "private-token"},
                 stored_inputs={},
+                operation_id=OPERATION_ID,
             ),
         )
     )
@@ -84,6 +87,7 @@ def test_rejects_missing_integrations(tmp_path: Path) -> None:
                     inputs={"zone": "example.com"},
                     integrations={},
                     stored_inputs={},
+                    operation_id=OPERATION_ID,
                 ),
             )
         )
@@ -101,6 +105,7 @@ def test_validates_input_before_execution(tmp_path: Path) -> None:
                     inputs={"zone": 42},
                     integrations={"cloudflare": "private-token"},
                     stored_inputs={},
+                    operation_id=OPERATION_ID,
                 ),
             )
         )
@@ -122,6 +127,7 @@ def test_redacts_action_exceptions(tmp_path: Path) -> None:
                     inputs={"zone": "example.com"},
                     integrations={"cloudflare": "private-token"},
                     stored_inputs={},
+                    operation_id=OPERATION_ID,
                 ),
             )
         )

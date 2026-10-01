@@ -30,6 +30,7 @@ class ActionInvocation:
     inputs: Mapping[str, object]
     integrations: Mapping[str, str]
     stored_inputs: Mapping[str, str]
+    operation_id: str
     responses: tuple[Mapping[str, object], ...] = ()
 
 
@@ -57,7 +58,13 @@ async def invoke_action(
         stored_inputs=definition.stored_inputs,
         messages=project.messages,
     )
-    context = Context(tokens, declaration, invocation.responses, stored_inputs=stored_values)
+    context = Context(
+        tokens,
+        declaration,
+        invocation.responses,
+        stored_inputs=stored_values,
+        operation_id=invocation.operation_id,
+    )
     arguments = dict(input_value)
     if "ctx" in inspect.signature(definition.body).parameters:
         arguments["ctx"] = context

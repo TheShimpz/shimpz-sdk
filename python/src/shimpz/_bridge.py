@@ -15,6 +15,7 @@ from ._language_pack import read_pack, verify_pack
 from ._project import AssistantProject, load_catalog_document
 from ._reference import render_request
 from ._runtime import ActionExecutionError, ActionInvocation, invoke_action
+from .context import valid_operation_id
 
 _MAX_REQUEST_BYTES = 512 * 1_024
 
@@ -58,6 +59,7 @@ def _invoke(root: Path, action_id: str, source: TextIO) -> str:
                     inputs=payload["input"],
                     integrations=payload["integrations"],
                     stored_inputs=payload["stored_inputs"],
+                    operation_id=payload["operation_id"],
                     responses=tuple(payload.get("responses", ())),
                 ),
             )
@@ -117,9 +119,10 @@ def _request(source: TextIO) -> dict[str, Any]:
         isinstance(payload, dict)
         and set(payload)
         in (
-            {"input", "integrations", "stored_inputs"},
-            {"input", "integrations", "stored_inputs", "responses"},
+            {"input", "integrations", "stored_inputs", "operation_id"},
+            {"input", "integrations", "stored_inputs", "operation_id", "responses"},
         )
+        and valid_operation_id(payload["operation_id"])
         and isinstance(payload["input"], dict)
         and isinstance(payload["integrations"], dict)
         and all(isinstance(key, str) and isinstance(value, str) for key, value in payload["integrations"].items())

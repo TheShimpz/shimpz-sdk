@@ -171,4 +171,9 @@ result, whose type is exactly the verified Action's return type. Report `not_occ
 absence; anything uncertain is `inconclusive`. The verifier declares no human request, or only the password request
 of its own Stored Input.
 
+`ctx.operation_id` is the stable id Team assigns to one logical Action operation: the same value on every replay and
+permitted retry, and a new value for a new run. Send it as a provider idempotency key when the provider supports one,
+within that provider's key scope, retention, and same-payload rules. It is not a secret and grants nothing, and a
+`Context` built outside a Team invocation has none.
+
 The native `_native` module is private and may not be imported by Assistants.

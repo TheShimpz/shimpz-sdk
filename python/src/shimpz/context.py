@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from types import MappingProxyType
@@ -14,6 +15,13 @@ from .human import InputRequest
 from .message import Text
 
 Authentication = Literal["password", "totp", "passkey"]
+# The canonical lowercase text of a random RFC 9562 version 4 UUID, exactly as Team mints it.
+_OPERATION_ID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}")
+
+
+def valid_operation_id(value: object) -> bool:
+    """Return whether ``value`` is one canonical logical operation id."""
+    return isinstance(value, str) and _OPERATION_ID.fullmatch(value) is not None
 
 
 class OAuthIntegration:
@@ -75,7 +83,7 @@ class ActionDeclaration:
 class Context:
     """Trusted integrations and attributable human requests for one invocation."""
 
-    __slots__ = ("_catalog", "_human", "_stored_input_ids", "integrations")
+    __slots__ = ("_catalog", "_human", "_operation_id", "_stored_input_ids", "integrations")
 
     def __init__(
         self,
@@ -84,6 +92,7 @@ class Context:
         responses: Sequence[Mapping[str, object]] = (),
         *,
         stored_inputs: Mapping[str, str] | None = None,
+        operation_id: str | None = None,
     ) -> None:
         reviewed = ActionDeclaration() if declaration is None else declaration
         declared = tuple(reviewed.stored_inputs)
@@ -97,10 +106,24 @@ class Context:
             or any(not isinstance(value, str) or not 1 <= len(value) <= 1024 for value in values.values())
         ):
             raise ValueError("Action Stored Input invocation is invalid")
+        if operation_id is not None and not valid_operation_id(operation_id):
+            raise ValueError("Action operation_id is invalid")
+        self._operation_id = operation_id
         self._stored_input_ids = frozenset(declared)
         self._catalog = index_catalog(reviewed.messages)
         self._human = HumanRequestRuntime(reviewed.human_requests, responses, values, self._catalog)
         self.integrations = Integrations(integration_tokens, self._human.observe_token)
+
+    @property
+    def operation_id(self) -> str:
+        """Return the stable logical operation id Team assigned to this invocation.
+
+        The value repeats on every replay and permitted retry of the same operation and changes for a new run, so an
+        Action may send it as a provider idempotency key within that provider's documented key rules.
+        """
+        if self._operation_id is None:
+            raise RuntimeError("Action operation_id exists only during a Team invocation")
+        return self._operation_id
 
     def request_approval(self, *, title: Text, description: Text) -> None:
         """Pause until the Team's authenticated human approves the described action."""
