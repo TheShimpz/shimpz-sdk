@@ -150,6 +150,12 @@ impl AssistantManifest {
         &self.shimpz.version
     }
 
+    /// Return the one-line Store summary, which joins the message catalog.
+    #[must_use]
+    pub fn summary(&self) -> &str {
+        &self.shimpz.summary
+    }
+
     /// Return Integration intents keyed by provider id.
     #[must_use]
     pub const fn integrations(&self) -> &BTreeMap<String, IntegrationIntent> {

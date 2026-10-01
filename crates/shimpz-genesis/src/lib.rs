@@ -1,5 +1,6 @@
 //! Language-neutral foundation for Shimpz Assistant SDKs.
 
+mod catalog;
 mod contract;
 mod contract_validation;
 mod error;
@@ -11,6 +12,7 @@ mod source_tree;
 mod validation;
 mod value;
 
+pub use catalog::{Message, MessageParam};
 pub use contract::{ActionContract, AssistantContract};
 pub use error::{ContractError, ManifestError, SourceTreeError, ValueError};
 pub use manifest::{AssistantManifest, IntegrationIntent, StoredInputIntent};

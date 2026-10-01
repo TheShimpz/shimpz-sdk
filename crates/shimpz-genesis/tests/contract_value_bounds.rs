@@ -2,7 +2,10 @@
 
 use serde::Deserialize;
 use serde_json::{Value, json};
-use shimpz_genesis::{ActionContract, AssistantContract, AssistantManifest, ContractError};
+use sha2::{Digest, Sha256};
+use shimpz_genesis::{
+    ActionContract, AssistantContract, AssistantManifest, ContractError, Message,
+};
 
 const SCHEMA_VECTORS: &str = include_str!("../protocol/assistant/v1/action-schema-vectors.json");
 const MANIFEST: &str = r#"
@@ -28,8 +31,9 @@ const CONTRACT_ERROR: &str = "Action contract has too many JSON values";
 const SCHEMA_FRAME_NODES: usize = 8;
 /// The Action object, its id, and its three capability lists.
 const ACTION_FRAME_NODES: usize = 5;
-/// The contract object, its version, and its Action list.
-const CONTRACT_FRAME_NODES: usize = 3;
+/// The contract object, its version, its Action list, its message list, and the
+/// summary message with its id, msgid, `max_length`, and parameter list.
+const CONTRACT_FRAME_NODES: usize = 9;
 const AT_LIMIT_VECTOR: &str =
     "schema at the 4096 JSON value bound counting enum literals and examples annotations";
 const BEYOND_LIMIT_VECTOR: &str = "schema one JSON value beyond the 4096 bound";
@@ -90,7 +94,15 @@ fn dense_contract(total: usize) -> Result<AssistantContract, ContractError> {
         })
         .collect();
     let manifest = AssistantManifest::parse(MANIFEST).expect("valid manifest");
-    AssistantContract::build(&manifest, actions)
+    let summary = manifest.summary();
+    let messages: Vec<Message> = serde_json::from_value(json!([{
+        "id": format!("{:x}", Sha256::digest(summary)),
+        "msgid": summary,
+        "max_length": 160,
+        "params": []
+    }]))
+    .expect("summary catalog");
+    AssistantContract::build(&manifest, actions, messages)
 }
 
 #[test]

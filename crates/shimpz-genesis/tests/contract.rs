@@ -1,7 +1,8 @@
 //! Action machine-contract acceptance tests.
 
 use serde_json::{Value, json};
-use shimpz_genesis::{ActionContract, AssistantContract, AssistantManifest};
+use sha2::{Digest, Sha256};
+use shimpz_genesis::{ActionContract, AssistantContract, AssistantManifest, Message};
 
 const MANIFEST: &str = r#"
 [shimpz]
@@ -65,6 +66,17 @@ fn schema() -> Value {
     })
 }
 
+fn catalog(manifest: &AssistantManifest) -> Vec<Message> {
+    let summary = manifest.summary();
+    serde_json::from_value(json!([{
+        "id": format!("{:x}", Sha256::digest(summary)),
+        "msgid": summary,
+        "max_length": 160,
+        "params": []
+    }]))
+    .expect("summary catalog")
+}
+
 fn action(id: &str, integrations: Vec<String>) -> ActionContract {
     ActionContract::new(id, integrations, Vec::new(), Vec::new(), schema(), schema())
         .expect("valid Action")
@@ -79,6 +91,7 @@ fn sorts_and_serializes_actions_deterministically() {
             action("list-zones", vec!["cloudflare".into()]),
             action("create-dns", Vec::new()),
         ],
+        catalog(&manifest),
     )
     .expect("valid contract");
 
@@ -100,7 +113,9 @@ fn sorts_and_serializes_actions_deterministically() {
             "\"input_schema\":{\"additionalProperties\":false,\"properties\":{},",
             "\"required\":[],\"type\":\"object\"},",
             "\"output_schema\":{\"additionalProperties\":false,\"properties\":{},",
-            "\"required\":[],\"type\":\"object\"}}]}"
+            "\"required\":[],\"type\":\"object\"}}],",
+            "\"messages\":[{\"id\":\"7d7c8069bf8aba48cbbb7251ea3ac5a2c1a3be4a337c030f1f79311381e541db\",",
+            "\"msgid\":\"Manage DNS records.\",\"max_length\":160,\"params\":[]}]}"
         )
     );
     assert_eq!(contract.sha256().expect("digest").len(), 64);
@@ -115,6 +130,7 @@ fn rejects_duplicate_action_ids() {
             action("list-zones", vec!["cloudflare".into()]),
             action("list-zones", Vec::new()),
         ],
+        catalog(&manifest),
     )
     .expect_err("duplicate Action");
 
@@ -124,16 +140,23 @@ fn rejects_duplicate_action_ids() {
 #[test]
 fn rejects_undeclared_or_unused_integrations() {
     let manifest = AssistantManifest::parse(MANIFEST).expect("valid manifest");
-    let undeclared =
-        AssistantContract::build(&manifest, vec![action("list-zones", vec!["other".into()])])
-            .expect_err("undeclared Integration");
+    let undeclared = AssistantContract::build(
+        &manifest,
+        vec![action("list-zones", vec!["other".into()])],
+        catalog(&manifest),
+    )
+    .expect_err("undeclared Integration");
     assert_eq!(
         undeclared.message(),
         "Action references an undeclared Integration"
     );
 
-    let unused = AssistantContract::build(&manifest, vec![action("list-zones", Vec::new())])
-        .expect_err("unused Integration");
+    let unused = AssistantContract::build(
+        &manifest,
+        vec![action("list-zones", Vec::new())],
+        catalog(&manifest),
+    )
+    .expect_err("unused Integration");
     assert_eq!(
         unused.message(),
         "every declared Integration must be used by an Action"
@@ -152,7 +175,8 @@ fn admits_only_one_declared_stored_input_per_action() {
         schema(),
     )
     .expect("declared Stored Input");
-    let contract = AssistantContract::build(&manifest, vec![action]).expect("valid contract");
+    let contract = AssistantContract::build(&manifest, vec![action], catalog(&manifest))
+        .expect("valid contract");
     assert_eq!(contract.actions()[0].stored_inputs(), ["whatsapp-token"]);
 
     let unknown = ActionContract::new(
@@ -164,8 +188,8 @@ fn admits_only_one_declared_stored_input_per_action() {
         schema(),
     )
     .expect("valid Action shape");
-    let error =
-        AssistantContract::build(&manifest, vec![unknown]).expect_err("undeclared Stored Input");
+    let error = AssistantContract::build(&manifest, vec![unknown], catalog(&manifest))
+        .expect_err("undeclared Stored Input");
     assert_eq!(
         error.message(),
         "Action references an undeclared Stored Input"
@@ -295,7 +319,8 @@ fn rejects_more_than_four_integrations_per_action() {
 #[test]
 fn rejects_empty_and_oversized_action_catalogs() {
     let manifest = AssistantManifest::parse(NO_ACCOUNTS).expect("valid manifest");
-    let none = AssistantContract::build(&manifest, Vec::new()).expect_err("zero actions");
+    let none = AssistantContract::build(&manifest, Vec::new(), catalog(&manifest))
+        .expect_err("zero actions");
     assert_eq!(
         none.message(),
         "Action catalog must contain 1 to 128 Actions"
@@ -304,7 +329,8 @@ fn rejects_empty_and_oversized_action_catalogs() {
     let many: Vec<ActionContract> = (0..129)
         .map(|index| action(&format!("p{index}"), Vec::new()))
         .collect();
-    let over = AssistantContract::build(&manifest, many).expect_err("129 actions");
+    let over =
+        AssistantContract::build(&manifest, many, catalog(&manifest)).expect_err("129 actions");
     assert_eq!(
         over.message(),
         "Action catalog must contain 1 to 128 Actions"

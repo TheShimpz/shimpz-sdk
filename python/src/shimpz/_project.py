@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import re
 import stat
 import sys
+import tomllib
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -69,7 +71,12 @@ class AssistantProject:
         """Build the canonical in-memory contract through Genesis."""
         inputs = [action.contract_input() for action in self.actions]
         actions_json = json.dumps(inputs, ensure_ascii=True, allow_nan=False, separators=(",", ":"))
-        return _native.build_contract(self.manifest_source, actions_json)
+        summary = tomllib.loads(self.manifest_source)["shimpz"]["summary"]
+        messages = [
+            {"id": hashlib.sha256(summary.encode()).hexdigest(), "msgid": summary, "max_length": 160, "params": []}
+        ]
+        messages_json = json.dumps(messages, ensure_ascii=True, allow_nan=False, separators=(",", ":"))
+        return _native.build_contract(self.manifest_source, actions_json, messages_json)
 
 
 def _read_manifest(root: Path) -> str:

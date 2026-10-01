@@ -1,9 +1,9 @@
 use serde::Serialize;
 use serde_json::Value;
-use sha2::{Digest, Sha256};
 
+use crate::catalog::{sha256_hex, validate_messages};
 use crate::contract_validation::{nodes_within, validate_action, validate_catalog};
-use crate::{AssistantManifest, ContractError, SPEC_VERSION};
+use crate::{AssistantManifest, ContractError, Message, SPEC_VERSION};
 
 const MAX_CONTRACT_BYTES: usize = 512 * 1024;
 /// Publication admits at most this many JSON values in one whole contract,
@@ -88,19 +88,26 @@ impl ActionContract {
 pub struct AssistantContract {
     version: u8,
     actions: Vec<ActionContract>,
+    messages: Vec<Message>,
 }
 
 impl AssistantContract {
-    /// Validate, sort, and close a complete Action catalog.
+    /// Validate, sort, and close a complete Action and message catalog.
+    ///
+    /// `messages` is the English message catalog sorted by id. Its structure,
+    /// placeholder syntax, field budgets, and summary message are validated
+    /// here; the binding validates Unicode text rules with the protocol's
+    /// reference validator before calling this constructor.
     ///
     /// # Errors
     ///
     /// Returns an error for duplicate Actions, undeclared Integrations, unused
-    /// manifest Integrations, or a catalog larger than 512 KiB or 32,768 JSON
-    /// values.
+    /// manifest Integrations, an invalid message catalog, or a contract larger
+    /// than 512 KiB or 32,768 JSON values.
     pub fn build(
         manifest: &AssistantManifest,
         mut actions: Vec<ActionContract>,
+        messages: Vec<Message>,
     ) -> Result<Self, ContractError> {
         actions.sort_by(|left, right| left.id.cmp(&right.id));
         if !(1..=128).contains(&actions.len()) {
@@ -109,9 +116,11 @@ impl AssistantContract {
             ));
         }
         validate_catalog(manifest, &actions)?;
+        validate_messages(manifest, &messages)?;
         let contract = Self {
             version: SPEC_VERSION,
             actions,
+            messages,
         };
         let value = serde_json::to_value(&contract)
             .map_err(|_| ContractError::new("Action contract cannot be serialized"))?;
@@ -142,19 +151,18 @@ impl AssistantContract {
     ///
     /// Returns an error when the contract cannot be serialized.
     pub fn sha256(&self) -> Result<String, ContractError> {
-        const HEX: &[u8; 16] = b"0123456789abcdef";
-        let digest = Sha256::digest(self.canonical_bytes()?);
-        let mut output = String::with_capacity(64);
-        for byte in digest {
-            output.push(char::from(HEX[usize::from(byte >> 4)]));
-            output.push(char::from(HEX[usize::from(byte & 0x0f)]));
-        }
-        Ok(output)
+        Ok(sha256_hex(&self.canonical_bytes()?))
     }
 
     /// Return Actions in canonical id order.
     #[must_use]
     pub fn actions(&self) -> &[ActionContract] {
         &self.actions
+    }
+
+    /// Return the English message catalog in canonical id order.
+    #[must_use]
+    pub fn messages(&self) -> &[Message] {
+        &self.messages
     }
 }

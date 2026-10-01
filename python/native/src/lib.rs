@@ -5,7 +5,7 @@ use pyo3::prelude::*;
 use serde::Deserialize;
 use serde_json::Value;
 use shimpz_genesis::{
-    ActionContract, AssistantContract, AssistantManifest, SourceEntry, SourceEntryKind,
+    ActionContract, AssistantContract, AssistantManifest, Message, SourceEntry, SourceEntryKind,
     validate_source_icon as validate_icon, validate_source_tree as validate_tree, validate_value,
 };
 
@@ -53,7 +53,11 @@ fn validate_source_icon(contents: &[u8]) -> PyResult<()> {
 }
 
 #[pyfunction]
-fn build_contract(manifest_source: &str, actions_json: &str) -> PyResult<String> {
+fn build_contract(
+    manifest_source: &str,
+    actions_json: &str,
+    messages_json: &str,
+) -> PyResult<String> {
     let manifest = AssistantManifest::parse(manifest_source).map_err(value_error)?;
     let inputs: Vec<ActionInput> = serde_json::from_str(actions_json)
         .map_err(|_| PyValueError::new_err("Actions JSON is invalid"))?;
@@ -71,7 +75,9 @@ fn build_contract(manifest_source: &str, actions_json: &str) -> PyResult<String>
             .map_err(value_error)
         })
         .collect::<PyResult<Vec<_>>>()?;
-    let contract = AssistantContract::build(&manifest, actions).map_err(value_error)?;
+    let messages: Vec<Message> = serde_json::from_str(messages_json)
+        .map_err(|_| PyValueError::new_err("Message catalog JSON is invalid"))?;
+    let contract = AssistantContract::build(&manifest, actions, messages).map_err(value_error)?;
     let bytes = contract.canonical_bytes().map_err(value_error)?;
     String::from_utf8(bytes).map_err(|_| PyValueError::new_err("Action contract is not UTF-8"))
 }
