@@ -14,6 +14,7 @@ struct ActionInput {
     id: String,
     integrations: Vec<String>,
     stored_inputs: Vec<String>,
+    input_files: Vec<String>,
     human_requests: Vec<String>,
     input_schema: Value,
     output_schema: Value,
@@ -77,6 +78,7 @@ fn build_contract(
                 input.input_schema,
                 input.output_schema,
             )
+            .and_then(|action| action.with_input_files(input.input_files))
             .and_then(|action| action.with_effect(input.effect, input.verifier))
             .and_then(|action| action.with_idempotency(input.idempotency))
             .map_err(value_error)

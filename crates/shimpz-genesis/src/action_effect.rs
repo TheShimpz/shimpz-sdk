@@ -3,13 +3,16 @@
 //! An Action is `read_only` or `mutating`. A `mutating` Action may name one
 //! non-interactive `read_only` Action of the same contract as its verifier,
 //! with exact typed input bindings correlated with the operation and the
-//! output positions of its outcome and recovered result.
+//! output positions of its outcome and recovered result. A binding never
+//! copies a declared file input, so a file id reaches an Action only through
+//! that Action's own declaration.
 
 use std::collections::BTreeMap;
 
 use serde_json::{Value, json};
 
 use crate::ContractError;
+use crate::input_file;
 use crate::validation::valid_id;
 
 const OUTCOMES: [&str; 3] = ["inconclusive", "not_occurred", "occurred"];
@@ -125,11 +128,21 @@ fn bindings_resolve(verifier: &Value, action: &Value, target: &Value) -> bool {
     };
     required.iter().all(|name| bindings.contains_key(*name))
         && correlated(bindings, &action["input_schema"])
+        && bindings
+            .values()
+            .all(|binding| !copies_file(binding, action))
         && bindings.iter().all(|(name, binding)| {
             properties.get(name).is_some_and(|property| {
                 binding_resolves(binding, &action["input_schema"], property)
             })
         })
+}
+
+/// Whether an input binding starts at one of the verified Action's declared file input properties.
+fn copies_file(binding: &Value, action: &Value) -> bool {
+    pointer_tokens(&binding["pointer"])
+        .and_then(|tokens| tokens.into_iter().next())
+        .is_some_and(|first| input_file::declared(action).any(|name| name == first))
 }
 
 /// Binds the original `operation_id`, or every required top-level member of the original input whole.

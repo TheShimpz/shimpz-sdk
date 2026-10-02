@@ -44,6 +44,7 @@ struct ActionInput {
     id: String,
     integrations: Vec<String>,
     stored_inputs: Vec<String>,
+    input_files: Vec<String>,
     human_requests: Vec<String>,
     input_schema: Value,
     output_schema: Value,
@@ -72,6 +73,7 @@ fn build(actions: Value) -> Result<AssistantContract, String> {
                 input.input_schema,
                 input.output_schema,
             )
+            .and_then(|action| action.with_input_files(input.input_files))
             .and_then(|action| action.with_effect(effect, input.verifier))
             .and_then(|action| action.with_idempotency(input.idempotency))
             .map_err(|error| error.to_string())

@@ -16,7 +16,7 @@ from types import ModuleType
 
 from . import _native
 from ._catalog import load_catalog
-from ._schema import JsonSchema, compile_action_schemas
+from ._schema import JsonSchema, compile_action_schemas, input_file_names
 from .action import ActionBody, get_action_metadata
 from .idempotency import Idempotency
 from .verifier import Effect, Verifier
@@ -35,6 +35,7 @@ class ActionDefinition:
     input_schema: JsonSchema
     output_schema: JsonSchema
     body: ActionBody
+    input_files: tuple[str, ...] = ()
     effect: Effect = "mutating"
     verifier: Verifier | None = None
     idempotency: Idempotency | None = None
@@ -45,6 +46,7 @@ class ActionDefinition:
             "id": self.id,
             "integrations": list(self.integrations),
             "stored_inputs": list(self.stored_inputs),
+            "input_files": list(self.input_files),
             "human_requests": list(self.human_requests),
             "input_schema": self.input_schema,
             "output_schema": self.output_schema,
@@ -183,6 +185,7 @@ def _load_action(path: Path, project_root: Path) -> ActionDefinition:
             input_schema=input_schema,
             output_schema=output_schema,
             body=body,
+            input_files=input_file_names(body),
             effect=metadata.effect,
             verifier=metadata.verifier,
             idempotency=metadata.idempotency,

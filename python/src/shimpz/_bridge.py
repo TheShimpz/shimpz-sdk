@@ -13,11 +13,17 @@ from ._human import HumanRequestSuspension, StoredInputRejection
 from ._json import strict_loads
 from ._language_pack import read_pack, verify_pack
 from ._project import AssistantProject, load_catalog_document
+from ._protocol.input_file_validator import (
+    MAX_FILE_INVOCATION_BYTES,
+    MAX_INVOCATION_BYTES,
+    delivers_content,
+    files_shape_error,
+)
 from ._reference import render_request
 from ._runtime import ActionFailure, ActionInvocation, invoke_action
 from .context import valid_operation_id
 
-_MAX_REQUEST_BYTES = 512 * 1_024
+_MAX_REQUEST_BYTES = MAX_INVOCATION_BYTES
 
 
 def main(arguments: list[str] | None = None) -> int:
@@ -61,6 +67,7 @@ def _invoke(root: Path, action_id: str, source: TextIO) -> str:
                     stored_inputs=payload["stored_inputs"],
                     operation_id=payload["operation_id"],
                     responses=tuple(payload.get("responses", ())),
+                    files=payload["files"],
                 ),
             )
         )
@@ -103,32 +110,38 @@ def _binary(source: TextIO) -> BinaryIO:
     return buffer
 
 
-def _bounded_json(source: TextIO) -> object:
-    raw = source.read(_MAX_REQUEST_BYTES + 1)
-    if not 0 < len(raw.encode()) <= _MAX_REQUEST_BYTES:
+def _bounded_json(source: TextIO, limit: int = _MAX_REQUEST_BYTES) -> object:
+    raw = source.read(limit + 1)
+    if not 0 < len(raw.encode()) <= limit:
         message = "private bridge request is invalid"
         raise ValueError(message)
     try:
-        return strict_loads(raw)
+        value = strict_loads(raw)
     except ValueError as error:
         message = "private bridge request is invalid"
         raise ValueError(message) from error
+    # Only an invocation that carries delivered file content may use the larger bound (ADR-0093).
+    if len(raw.encode()) > _MAX_REQUEST_BYTES and not delivers_content(value):
+        message = "private bridge request is invalid"
+        raise ValueError(message)
+    return value
 
 
 def _request(source: TextIO) -> dict[str, Any]:
-    payload = _bounded_json(source)
+    payload = _bounded_json(source, MAX_FILE_INVOCATION_BYTES)
     valid = (
         isinstance(payload, dict)
         and set(payload)
         in (
-            {"input", "integrations", "stored_inputs", "operation_id"},
-            {"input", "integrations", "stored_inputs", "operation_id", "responses"},
+            {"input", "integrations", "stored_inputs", "files", "operation_id"},
+            {"input", "integrations", "stored_inputs", "files", "operation_id", "responses"},
         )
         and valid_operation_id(payload["operation_id"])
         and isinstance(payload["input"], dict)
         and isinstance(payload["integrations"], dict)
         and all(isinstance(key, str) and isinstance(value, str) for key, value in payload["integrations"].items())
         and _valid_stored_inputs(payload["stored_inputs"])
+        and files_shape_error(payload["files"]) is None
         and (
             "responses" not in payload
             or (

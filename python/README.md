@@ -203,6 +203,34 @@ permitted retry, and a new value for a new run. Send it as a provider idempotenc
 within that provider's key scope, retention, and same-payload rules. It is not a secret and grants nothing, and a
 `Context` built outside a Team invocation has none.
 
+## Files
+
+An Action takes one file from the person's chat message by annotating one parameter with `shimpz.File`. It must
+declare exactly one authorization request, because Team delivers the original bytes only after it:
+
+```python
+from typing import TypedDict
+
+from shimpz import Context, File, action, text
+
+
+class Upload(TypedDict):
+    id: str
+
+
+@action(human_requests=["approval"])
+async def run(document: File, folder: str, *, ctx: Context) -> Upload:
+    ctx.request_approval(title=text("Upload the document"), description=text("Upload the selected document."))
+    data = document.read()
+    ...
+```
+
+The model only ever passes the file id. The first invocation carries the file's `name`, `media_type`, `size`, and
+`sha256`; `document.read()` raises `FileContentWithheldError` until the person approves, and Team shows the file on
+that approval card. The approved replay delivers the original bytes, at most 8 MiB, checked against the size and
+digest. The name is literal data, never a path, and the original bytes may carry their own embedded metadata. A file
+parameter is a direct required parameter; a file inside a `TypedDict`, a list, or `Annotated` is refused.
+
 ## Failures
 
 Raise an ordinary exception when an Action cannot finish; there is no error-code list to choose from. The SDK turns

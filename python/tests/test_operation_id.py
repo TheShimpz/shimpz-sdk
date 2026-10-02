@@ -64,7 +64,7 @@ def test_the_action_receives_the_invocation_operation_id(tmp_path: Path) -> None
     (root / "shimpz.toml").write_text(MANIFEST, encoding="utf-8")
     (root / "pyproject.toml").write_text("[project]\nname = 'assistant'\n", encoding="utf-8")
     (root / "actions" / "echo.py").write_text(ACTION, encoding="utf-8")
-    request = {"input": {}, "integrations": {}, "stored_inputs": {}, "operation_id": OPERATION_ID}
+    request = {"input": {}, "integrations": {}, "stored_inputs": {}, "files": {}, "operation_id": OPERATION_ID}
 
     response = json.loads(dispatch(["invoke", str(root), "echo"], io.StringIO(json.dumps(request))))
 

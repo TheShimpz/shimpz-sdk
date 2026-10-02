@@ -109,7 +109,15 @@ def test_builds_a_contract_for_the_rust_cli(tmp_path: Path) -> None:
 def test_invokes_a_action_from_a_stdin_request(tmp_path: Path) -> None:
     root = create_project(tmp_path / "assistant")
     request = io.StringIO(
-        json.dumps({"input": {"name": "Ada"}, "integrations": {}, "stored_inputs": {}, "operation_id": OPERATION_ID})
+        json.dumps(
+            {
+                "input": {"name": "Ada"},
+                "integrations": {},
+                "stored_inputs": {},
+                "files": {},
+                "operation_id": OPERATION_ID,
+            }
+        )
     )
 
     result = json.loads(dispatch(["invoke", str(root), "greet"], request))
@@ -120,7 +128,7 @@ def test_invokes_a_action_from_a_stdin_request(tmp_path: Path) -> None:
 def test_rejects_duplicate_json_keys(tmp_path: Path) -> None:
     root = create_project(tmp_path / "assistant")
     request = io.StringIO(
-        '{"input":{"name":"Ada","name":"Lin"},"integrations":{},"stored_inputs":{},"operation_id":"6f1c2b8e-3a4d-4c5e-9f60-718293a4b5c6"}'
+        '{"input":{"name":"Ada","name":"Lin"},"integrations":{},"stored_inputs":{},"files":{},"operation_id":"6f1c2b8e-3a4d-4c5e-9f60-718293a4b5c6"}'
     )
 
     with pytest.raises(ValueError, match="request is invalid"):
@@ -129,7 +137,13 @@ def test_rejects_duplicate_json_keys(tmp_path: Path) -> None:
 
 def test_returns_a_tagged_request_and_replays_its_response(tmp_path: Path) -> None:
     root = create_project(tmp_path / "assistant", HUMAN_ACTION)
-    invocation = {"input": {"name": "Ada"}, "integrations": {}, "stored_inputs": {}, "operation_id": OPERATION_ID}
+    invocation = {
+        "input": {"name": "Ada"},
+        "integrations": {},
+        "stored_inputs": {},
+        "files": {},
+        "operation_id": OPERATION_ID,
+    }
 
     suspended = json.loads(dispatch(["invoke", str(root), "greet"], io.StringIO(json.dumps(invocation))))
 
@@ -177,6 +191,7 @@ description = "Token used to call the WhatsApp API."
         "input": {"name": "Ada"},
         "integrations": {},
         "stored_inputs": {"whatsapp-token": "invalid"},
+        "files": {},
         "operation_id": OPERATION_ID,
     }
 

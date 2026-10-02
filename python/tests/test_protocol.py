@@ -17,6 +17,7 @@ PACKAGED = ROOT / "python/src/shimpz/_protocol"
         "action_effect_validator.py",
         "failure_validator.py",
         "human_request_validator.py",
+        "input_file_validator.py",
         "message_catalog_validator.py",
     ],
 )
@@ -33,6 +34,7 @@ def test_pinned_mirror_verifies_its_artifacts_and_vectors(
         "action_effect_validator",
         "failure_validator",
         "human_request_validator",
+        "input_file_validator",
         "message_catalog_validator",
     ):
         monkeypatch.delitem(sys.modules, name, raising=False)

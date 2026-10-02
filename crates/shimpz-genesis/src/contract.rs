@@ -5,6 +5,7 @@ use crate::action_effect::{validate_declaration, validate_verifiers};
 use crate::catalog::{sha256_hex, validate_messages};
 use crate::contract_validation::{nodes_within, validate_action, validate_catalog};
 use crate::idempotency::validate_idempotency;
+use crate::input_file::validate_input_files;
 use crate::{AssistantManifest, ContractError, Message, SPEC_VERSION};
 
 const MAX_CONTRACT_BYTES: usize = 512 * 1024;
@@ -19,6 +20,7 @@ pub struct ActionContract {
     id: String,
     integrations: Vec<String>,
     stored_inputs: Vec<String>,
+    input_files: Vec<String>,
     human_requests: Vec<String>,
     input_schema: Value,
     output_schema: Value,
@@ -33,7 +35,8 @@ impl ActionContract {
     /// Construct one Action using its file-derived id.
     ///
     /// The Action declares the conservative `mutating` effect until
-    /// [`ActionContract::with_effect`] declares otherwise.
+    /// [`ActionContract::with_effect`] declares otherwise, and no file input
+    /// until [`ActionContract::with_input_files`] declares one.
     ///
     /// # Errors
     ///
@@ -62,6 +65,7 @@ impl ActionContract {
             id,
             integrations,
             stored_inputs,
+            input_files: Vec::new(),
             human_requests,
             input_schema,
             output_schema,
@@ -105,6 +109,26 @@ impl ActionContract {
         validate_idempotency(&self.effect, idempotency.as_ref())?;
         self.idempotency = idempotency;
         Ok(self)
+    }
+
+    /// Declare the input properties that carry one Team file each.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for more than one file input, a name that is not a
+    /// required direct input property whose subschema is exactly the file-id
+    /// schema, or an Action that does not declare exactly one authorization
+    /// request.
+    pub fn with_input_files(mut self, input_files: Vec<String>) -> Result<Self, ContractError> {
+        validate_input_files(&input_files, &self.input_schema, &self.human_requests)?;
+        self.input_files = input_files;
+        Ok(self)
+    }
+
+    /// Return the input properties that carry one Team file each.
+    #[must_use]
+    pub fn input_files(&self) -> &[String] {
+        &self.input_files
     }
 
     /// Return the declared idempotency, if any.

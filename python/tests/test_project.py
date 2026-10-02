@@ -68,12 +68,14 @@ def test_discovers_one_action_per_python_file(tmp_path: Path) -> None:
         "id",
         "integrations",
         "stored_inputs",
+        "input_files",
         "human_requests",
         "input_schema",
         "output_schema",
         "effect",
     }
     assert contract["actions"][0]["stored_inputs"] == []
+    assert contract["actions"][0]["input_files"] == []
     assert contract["actions"][0]["human_requests"] == []
     assert contract["actions"][0]["effect"] == "mutating"
 

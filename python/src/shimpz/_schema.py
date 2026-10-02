@@ -7,7 +7,9 @@ import re
 from pathlib import Path
 from typing import Annotated, Literal, NotRequired, Required, get_args, get_origin, get_type_hints, is_typeddict
 
+from ._files import file_id_schema
 from ._source import AnnotationSite
+from .file import File
 
 type JsonSchema = dict[str, object]
 
@@ -58,6 +60,9 @@ def compile_action_schemas(
             _validate_context(parameter)
             continue
         _validate_parameter(name, parameter, hints)
+        if hints[name] is File:
+            properties[name] = file_id_schema()
+            continue
         properties[name] = _schema_at(
             hints[name],
             AnnotationSite(body, "parameter", name, project_root),
@@ -67,6 +72,12 @@ def compile_action_schemas(
         message = "Action return type annotation is required"
         raise TypeError(message)
     return _object_schema(properties), _output_schema(return_annotation, body, project_root)
+
+
+def input_file_names(body: object) -> tuple[str, ...]:
+    """Return the Action parameters annotated exactly ``shimpz.File``, in signature order."""
+    hints = get_type_hints(body, include_extras=True)
+    return tuple(name for name in inspect.signature(body).parameters if hints.get(name) is File)
 
 
 def schema_for_type(annotation: object, *, _project_root: Path | None = None) -> JsonSchema:
