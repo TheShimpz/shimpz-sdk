@@ -70,6 +70,29 @@ async def run(document: File, *, ctx: Context) -> Result:
     return {"bytes": size}
 """
 
+PASSKEY_MARKER = """
+from pathlib import Path
+from typing import TypedDict
+
+from shimpz import Context, File, action, text
+
+
+class Result(TypedDict):
+    bytes: int
+
+
+@action(human_requests=["auth:passkey"])
+async def run(document: File, folder: str, *, ctx: Context) -> Result:
+    Path(folder).write_text("the Action body ran", encoding="utf-8")
+    try:
+        size = len(document.read())
+    except Exception:
+        size = -1
+    Path(folder).write_text(f"bytes before authorization: {size}", encoding="utf-8")
+    ctx.request_auth("passkey", title=text("Store the document"), description=text("Store the selected document."))
+    return {"bytes": len(document.read())}
+"""
+
 UNAUTHORIZED = """
 from typing import TypedDict
 
@@ -212,6 +235,64 @@ def test_a_file_outside_the_two_phase_rule_never_reaches_action_code(
 
     with pytest.raises(ValueError, match="files do not match"):
         invoke(root, invocation(content, responses, folder="invoices"))
+
+
+DELIVERED = {"type": "delivered", "base64": base64.b64encode(CONTENT).decode()}
+
+
+@pytest.mark.parametrize(
+    "responses",
+    [
+        [{"ordinal": 0, "fingerprint": "a" * 64, "kind": "approval", "value": True}],
+        [{"kind": "auth:passkey", "value": True}],
+        [{"ordinal": 0, "fingerprint": "a" * 64, "kind": "auth:passkey", "value": True, "scope": "all"}],
+        [{"ordinal": 0, "fingerprint": "A" * 64, "kind": "auth:passkey", "value": True}],
+        [
+            {"ordinal": 0, "fingerprint": "a" * 64, "kind": "auth:passkey", "value": True},
+            {"ordinal": 1, "fingerprint": "a" * 64, "kind": "auth:passkey", "value": True},
+        ],
+        [{"ordinal": 1, "fingerprint": "a" * 64, "kind": "auth:passkey", "value": True}],
+        ["auth:passkey"],
+    ],
+    ids=[
+        "wrong-kind",
+        "no-ordinal-or-fingerprint",
+        "extra-member",
+        "bad-fingerprint",
+        "duplicate",
+        "ordinal",
+        "string",
+    ],
+)
+def test_a_malformed_or_wrong_kind_response_never_reaches_the_action_body(
+    tmp_path: Path, responses: list[object]
+) -> None:
+    root = create_project(tmp_path / "assistant", PASSKEY_MARKER)
+    marker = tmp_path / "marker"
+    request = json.loads(invocation(DELIVERED, folder=str(marker)))
+    request["responses"] = responses
+
+    with pytest.raises((TypeError, ValueError)):
+        invoke(root, json.dumps(request))
+
+    assert not marker.exists()
+
+
+def test_bytes_stay_unreadable_until_this_replay_matches_the_authorization(tmp_path: Path) -> None:
+    root = create_project(tmp_path / "assistant", PASSKEY_MARKER)
+    marker = tmp_path / "marker"
+    first = invoke(root, invocation({"type": "withheld"}, folder=str(marker)))
+    assert first["type"] == "request"
+    assert marker.read_text(encoding="utf-8") == "bytes before authorization: -1"
+    passkey = {"ordinal": 0, "fingerprint": first["request"]["fingerprint"], "kind": "auth:passkey", "value": True}
+
+    forged = invoke(root, invocation(DELIVERED, [{**passkey, "fingerprint": "a" * 64}], folder=str(marker)))
+    assert forged["type"] == "failure"
+    assert marker.read_text(encoding="utf-8") == "bytes before authorization: -1"
+
+    replay = invoke(root, invocation(DELIVERED, [passkey], folder=str(marker)))
+    assert replay == {"type": "result", "result": {"bytes": len(CONTENT)}}
+    assert marker.read_text(encoding="utf-8") == "bytes before authorization: -1"
 
 
 def test_an_ordinary_invocation_stays_within_512_kib(tmp_path: Path) -> None:

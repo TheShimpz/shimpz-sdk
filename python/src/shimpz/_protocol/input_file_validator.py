@@ -26,6 +26,20 @@ MAX_INVOCATION_BYTES = 512 * 1024
 MAX_FILE_INVOCATION_BYTES = 12 * 1024 * 1024
 FILE_ID = re.compile(r"[0-9a-f]{32}")
 SHA256 = re.compile(r"[0-9a-f]{64}")
+FINGERPRINT = SHA256
+MAX_RESPONSES = 8
+RESPONSE_KEYS = frozenset({"ordinal", "fingerprint", "kind", "value"})
+# The longest admitted string response of each string-valued human request kind.
+TEXT_RESPONSE_BOUNDS = {
+    "input:text": 16_000,
+    "input:textarea": 16_000,
+    "input:password": 1024,
+    "input:phone": 64,
+    "input:select": 128,
+    "input:choice": 128,
+}
+MAX_CHOICES = 32
+MAX_CHOICE_CHARACTERS = 128
 MEDIA_TYPE = re.compile(r"[a-z0-9][a-z0-9!#$&^_.+-]*/[a-z0-9][a-z0-9!#$&^_.+-]*")
 FILE_KEYS = frozenset({"name", "media_type", "size", "sha256", "content"})
 WITHHELD = {"type": "withheld"}
@@ -78,18 +92,39 @@ def invocation_files_error(action: object, invocation: object) -> str | None:
     files = invocation.get("files") if isinstance(invocation, dict) else None
     if not isinstance(action, dict) or declaration_error(action) is not None:
         return "invocation_invalid"
-    shape = files_shape_error(files)
-    if shape is not None:
-        return shape
+    responses = invocation.get("responses", [])
+    error = responses_error(action, responses) or files_shape_error(files)
+    if error is not None:
+        return error
     inputs = invocation.get("input")
     selected = [inputs.get(name) for name in action["input_files"]] if isinstance(inputs, dict) else None
     if selected is None or not all(isinstance(file_id, str) for file_id in selected) or set(files) != set(selected):
         return "files_mismatch"
-    authorized = _authorized(invocation.get("responses", []))
+    authorized = _authorized(action, responses)
     for record in files.values():
         error = _content_error(record, authorized=authorized)
         if error is not None:
             return error
+    return None
+
+
+def responses_error(action: dict[str, object], responses: object) -> str | None:
+    """Return a stable reason when a replay transcript is malformed for this Action, before any file is bound.
+
+    Every response is closed, its ordinal equals its position, its fingerprint is a lowercase SHA-256, its kind is one
+    the Action declares, and its value has that kind's type and bound. At most one response authorizes. Matching each
+    fingerprint to the request the Action makes happens during replay, after this check.
+    """
+    declared = action.get("human_requests")
+    if not isinstance(responses, list) or len(responses) > MAX_RESPONSES or not isinstance(declared, list):
+        return "responses_invalid"
+    for ordinal, response in enumerate(responses):
+        if not _valid_response(response, ordinal):
+            return "responses_invalid"
+        if response["kind"] not in declared:
+            return "response_undeclared"
+    if sum(response["kind"] in AUTHORIZATION_REQUESTS for response in responses) > 1:
+        return "authorization_duplicate"
     return None
 
 
@@ -181,12 +216,37 @@ def _valid_content_branch(content: object) -> bool:
     )
 
 
-def _authorized(responses: object) -> bool:
-    """Content is delivered exactly when the transcript holds the Action's admitted authorization response."""
-    return isinstance(responses, list) and any(
-        isinstance(response, dict) and response.get("kind") in AUTHORIZATION_REQUESTS and response.get("value") is True
-        for response in responses
+def _authorized(action: dict[str, object], responses: list[dict[str, object]]) -> bool:
+    """Content is delivered exactly when the well-formed transcript holds the Action's own authorization response."""
+    declared = [kind for kind in action["human_requests"] if kind in AUTHORIZATION_REQUESTS]
+    return len(declared) == 1 and any(response["kind"] == declared[0] for response in responses)
+
+
+def _valid_response(response: object, ordinal: int) -> bool:
+    return (
+        isinstance(response, dict)
+        and set(response) == RESPONSE_KEYS
+        and type(response["ordinal"]) is int
+        and response["ordinal"] == ordinal
+        and isinstance(response["fingerprint"], str)
+        and FINGERPRINT.fullmatch(response["fingerprint"]) is not None
+        and isinstance(response["kind"], str)
+        and _valid_response_value(response["kind"], response["value"])
     )
+
+
+def _valid_response_value(kind: str, value: object) -> bool:
+    if kind in AUTHORIZATION_REQUESTS:
+        return value is True
+    if kind == "input:choices":
+        return (
+            isinstance(value, list)
+            and len(value) <= MAX_CHOICES
+            and all(isinstance(item, str) and len(item) <= MAX_CHOICE_CHARACTERS for item in value)
+            and len(set(value)) == len(value)
+        )
+    bound = TEXT_RESPONSE_BOUNDS.get(kind)
+    return bound is not None and isinstance(value, str) and len(value) <= bound
 
 
 def _is_unicode(text: str) -> bool:

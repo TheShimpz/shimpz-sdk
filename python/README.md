@@ -228,7 +228,8 @@ async def run(document: File, folder: str, *, ctx: Context) -> Upload:
 The model only ever passes the file id. The first invocation carries the file's `name`, `media_type`, `size`, and
 `sha256`; `document.read()` raises `FileContentWithheldError` until the person approves, and Team shows the file on
 that approval card. The approved replay delivers the original bytes, at most 8 MiB, checked against the size and
-digest. The name is literal data, never a path, and the original bytes may carry their own embedded metadata. A file
+digest, and only a well-formed response of exactly the declared authorization kind delivers them. Even then,
+`read()` works only after this execution's `ctx.request_approval` or `ctx.request_auth` call has returned. The name is literal data, never a path, and the original bytes may carry their own embedded metadata. A file
 parameter is a direct required parameter; a file inside a `TypedDict`, a list, or `Annotated` is refused.
 
 ## Failures

@@ -306,9 +306,13 @@ declared input property, keyed by that id:
 - `content` is closed: `{"type": "withheld"}`, or `{"type": "delivered", "base64": B}` where `B` is canonical padded
   standard base64 without whitespace whose decoding has exactly `size` bytes and hashes to `sha256`.
 
-Delivery uses the Action's one authorization ceremony in two phases. Content is `withheld` until the response
-transcript holds the Action's admitted authorization response, and `delivered` on every invocation whose transcript
-holds it; any other combination is refused. The first invocation therefore receives metadata only, the Action
+Delivery uses the Action's one authorization ceremony in two phases. Before any file is bound, the response
+transcript must be well formed for the Action: every response closed, its ordinal equal to its position, its
+fingerprint a lowercase SHA-256, its kind one the Action declares, its value of that kind's type and bound, and at most
+one authorization response. Content is `withheld` until that transcript holds a response of exactly the Action's
+declared authorization kind, and `delivered` on every invocation whose transcript holds it; any other combination is
+refused. The runtime still matches each response's fingerprint to the request the Action makes during replay, and
+exposes the bytes only once the authorization response has matched. The first invocation therefore receives metadata only, the Action
 requests its declared authorization, Team adds a platform-rendered disclosure of the file to that card, and only the
 approved replay receives the original bytes, including any metadata they embed. An Action that never requests
 authorization never receives bytes. Reading withheld content is an error in the SDK, never an empty file.

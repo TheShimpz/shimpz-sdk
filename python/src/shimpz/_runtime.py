@@ -73,7 +73,6 @@ async def invoke_action(
         raise ValueError(message)
     input_value = dict(invocation.inputs)
     _validate_value(definition.input_schema, input_value, "Action input")
-    files = _file_arguments(definition, input_value, invocation)
     declaration = ActionDeclaration(
         human_requests=definition.human_requests,
         stored_inputs=definition.stored_inputs,
@@ -86,6 +85,7 @@ async def invoke_action(
         stored_inputs=stored_values,
         operation_id=invocation.operation_id,
     )
+    files = _file_arguments(definition, input_value, invocation, context)
     arguments = {**input_value, **files}
     if "ctx" in inspect.signature(definition.body).parameters:
         arguments["ctx"] = context
@@ -122,15 +122,20 @@ def _secrets(invocation: ActionInvocation, context: Context) -> list[str]:
 
 
 def _file_arguments(
-    definition: ActionDefinition, input_value: Mapping[str, object], invocation: ActionInvocation
+    definition: ActionDefinition, input_value: Mapping[str, object], invocation: ActionInvocation, context: Context
 ) -> dict[str, object]:
-    """Replace each declared file input id with its validated ``shimpz.File`` before Action code runs."""
+    """Replace each declared file input id with its validated ``shimpz.File`` before Action code runs.
+
+    The transcript is validated before any file is bound, and the bytes stay unreadable until this execution matches
+    the Action's authorization response.
+    """
     declaration = {
         "input_files": list(definition.input_files),
         "input_schema": definition.input_schema,
         "human_requests": list(definition.human_requests),
     }
-    return dict(bind_files(declaration, input_value, invocation.files, invocation.responses))
+    files = bind_files(declaration, input_value, invocation.files, invocation.responses, context._authorized)
+    return dict(files)
 
 
 def _find_action(project: AssistantProject, action_id: str) -> ActionDefinition:

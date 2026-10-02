@@ -174,6 +174,9 @@ class Context:
     def _finish(self, result: object) -> None:
         self._human.finish(result)
 
+    def _authorized(self) -> bool:
+        return self._human.authorized()
+
 
 def _ignore_observation() -> None:
     pass

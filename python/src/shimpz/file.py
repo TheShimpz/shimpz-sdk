@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 
 class FileContentWithheldError(RuntimeError):
-    """Raised when an Action reads file bytes that Team has not delivered yet.
+    """Raised when an Action reads file bytes before its authorization is granted in this execution.
 
-    Team delivers the original bytes only on the replay that follows the Action's declared authorization, so read
-    them after ``ctx.request_approval`` or ``ctx.request_auth`` returns.
+    Team delivers the original bytes only on the replay that follows the Action's declared authorization, and the SDK
+    exposes them only after that replay matches the authorization response, so read them after
+    ``ctx.request_approval`` or ``ctx.request_auth`` returns.
     """
 
 
@@ -28,6 +30,7 @@ class File:
     size: int
     sha256: str
     _content: bytes | None = field(default=None, repr=False, compare=False)
+    _authorized: Callable[[], bool] | None = field(default=None, repr=False, compare=False)
 
     @property
     def delivered(self) -> bool:
@@ -35,8 +38,8 @@ class File:
         return self._content is not None
 
     def read(self) -> bytes:
-        """Return the original bytes, which Team delivers only after the Action's authorization."""
-        if self._content is None:
+        """Return the original bytes, which exist only after the Action's authorization matched in this execution."""
+        if self._content is None or (self._authorized is not None and not self._authorized()):
             message = "file content is withheld until the Action's authorization is granted"
             raise FileContentWithheldError(message)
         return self._content

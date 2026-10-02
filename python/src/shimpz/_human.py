@@ -31,6 +31,7 @@ class HumanRequestRuntime:
     __slots__ = (
         "_allowed",
         "_authorization_requested",
+        "_authorized",
         "_catalog",
         "_index",
         "_resolved_stored_inputs",
@@ -52,12 +53,17 @@ class HumanRequestRuntime:
         self._allowed = frozenset(allowed)
         self._catalog = dict(catalog or {})
         self._authorization_requested = False
+        self._authorized = False
         self._responses = tuple(dict(item) for item in responses)
         self._index = 0
         self._stored_inputs = dict(stored_inputs or {})
         self._resolved_stored_inputs: set[str] = set()
         self._secret: str | None = None
         self._token_observed = False
+
+    def authorized(self) -> bool:
+        """Return whether this execution matched its authorization request to the admitted response."""
+        return self._authorized
 
     def observe_token(self) -> None:
         """Record the first access to an Integration bearer."""
@@ -85,6 +91,8 @@ class HumanRequestRuntime:
         value = response["value"]
         _validate_value(kind, descriptor, value)
         self._index += 1
+        if kind == "approval" or kind.startswith("auth:"):
+            self._authorized = True
         if kind == "input:password":
             self._observe_secret(value)
         return value
