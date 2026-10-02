@@ -131,3 +131,30 @@ fn an_idempotency_provider_must_be_an_allowed_host() {
     let error = build(actions).expect_err("undeclared provider host");
     assert!(error.contains("not an allowed host"), "{error}");
 }
+
+#[test]
+fn a_read_only_effect_refuses_an_idempotency_declared_first() {
+    let schema =
+        json!({"type": "object", "properties": {}, "required": [], "additionalProperties": false});
+    let idempotency = json!({
+        "provider": "api.example.com",
+        "key": {"location": "header", "name": "Idempotency-Key"},
+        "scope": "account",
+        "retention_seconds": 86_400,
+        "same_payload_required": true
+    });
+    let action = ActionContract::new("run", vec![], vec![], vec![], schema.clone(), schema)
+        .expect("Action")
+        .with_idempotency(Some(idempotency))
+        .expect("mutating idempotency");
+
+    let error = action
+        .clone()
+        .with_effect("read_only", None)
+        .expect_err("read-only Action with idempotency");
+    assert!(
+        error.message().contains("only a mutating Action"),
+        "{error}"
+    );
+    assert!(action.with_effect("mutating", None).is_ok());
+}

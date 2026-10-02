@@ -76,9 +76,10 @@ impl ActionContract {
     /// # Errors
     ///
     /// Returns an error for an effect other than `read_only` or `mutating`, a
-    /// verifier on a `read_only` Action, or a verifier whose closed shape,
-    /// identifier, bindings, or pointers are invalid. Whether the verifier
-    /// matches the Actions it relates is checked when the contract is built.
+    /// verifier or an already declared idempotency on a `read_only` Action, or
+    /// a verifier whose closed shape, identifier, bindings, or pointers are
+    /// invalid. Whether the verifier matches the Actions it relates is checked
+    /// when the contract is built.
     pub fn with_effect(
         mut self,
         effect: impl Into<String>,
@@ -86,6 +87,7 @@ impl ActionContract {
     ) -> Result<Self, ContractError> {
         let effect = effect.into();
         validate_declaration(&effect, verifier.as_ref())?;
+        validate_idempotency(&effect, self.idempotency.as_ref())?;
         self.effect = effect;
         self.verifier = verifier;
         Ok(self)
