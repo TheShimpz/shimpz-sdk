@@ -440,12 +440,47 @@ def test_the_packaged_validator_matches_every_failure_vector() -> None:
         "password=" + "x" * 65_000,
         "-----BEGIN PRIVATE KEY-----" * 2_000,
         "https://" + "u" * 65_000,
+        "https://" + "u:" * 32_000,
         "eyJ" + "a" * 65_000,
     ],
-    ids=["plain", "names", "named-value", "key-blocks", "url", "jwt"],
+    ids=["plain", "names", "named-value", "key-blocks", "url", "url-colons", "jwt"],
 )
 def test_sanitization_stays_fast_on_adversarial_text(text: str) -> None:
     started = time.perf_counter()
     _failure(ValueError(text), "x" * 40)
 
     assert time.perf_counter() - started < 1.0
+
+
+@pytest.mark.parametrize("length", [4_096, 4_097, 6_000])
+def test_a_long_named_secret_is_replaced_whole_in_the_message_and_excerpt(length: int) -> None:
+    text = "token=" + "Z" * length
+    response = _Response(401, text, "text/plain")
+
+    failure = _failure(HTTPStatusError(text, response))
+
+    assert failure["message"] == f"token={REDACTED}"
+    assert failure["response_excerpt"] == f"token={REDACTED}"
+    assert "Z" not in json.dumps(failure)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Bearer " + "Q" * 6_000,
+        "https://" + "u" * 300 + ":" + "p" * 6_000 + "@api.example.com/",
+        "eyJ" + "a" * 3_000 + "." + "b" * 3_000 + "." + "c" * 3_000,
+        "sk-" + "Q" * 6_000,
+        "ghp_" + "Q" * 6_000,
+        "AIza" + "Q" * 6_000,
+    ],
+    ids=["bearer", "url-credentials", "jwt", "provider-key", "github", "google"],
+)
+def test_long_secret_shapes_leave_no_tail(text: str) -> None:
+    failure = _failure(ValueError(f"before {text} after"))
+
+    assert REDACTED in failure["message"]
+    assert "QQQQ" not in failure["message"]
+    assert "pppp" not in failure["message"]
+    assert "cccc" not in failure["message"]
+    assert failure["message"].endswith(" after")

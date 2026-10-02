@@ -13,21 +13,22 @@ from ._protocol.failure_validator import MAX_TEXT_BYTES, UNSAFE_TEXT
 REDACTED = "[REDACTED]"
 _REPLACEMENT = chr(0xFFFD)
 # Sanitize at most this many characters of one text. Longer text is withheld whole: replacing secrets inside a
-# clipped prefix could shorten it enough to bring a clipped secret into the bounded output.
+# clipped prefix could shorten it enough to bring a clipped secret into the bounded output. Within the window, every
+# secret-shaped pattern consumes its whole value, because an upper bound would leave a longer secret's tail behind.
 WINDOW = 64 * 1_024
 _NAMED_SECRET = re.compile(
     r"(?i)(?:password|passwd|pwd|secret|token|api[_-]?key|apikey|access[_-]?key|private[_-]?key|authorization"
     r"|cookie|session[_-]?id|signature|credential|(?<![A-Za-z])key)[\w.-]{0,32}(?P<separator>[\"']?\s{0,4}[:=]\s{0,4}[\"']?)"
-    r"(?P<value>(?!\[REDACTED\])(?:(?:bearer|basic|token)\s+)?[^\s\"'&,;)}\]<>]{1,4096})"
+    r"(?P<value>(?!\[REDACTED\])(?:(?:bearer|basic|token)\s+)?[^\s\"'&,;)}\]<>]+)"
 )
 _SHAPED_SECRETS = (
     re.compile(r"(?i)\b(?P<keep>(?:bearer|basic|digest|token)\s+)[A-Za-z0-9._~+/=-]{8,}"),
-    re.compile(r"(?i)\b(?P<keep>[a-z][a-z0-9+.-]{0,31}://)[^\s/@:]{0,256}(?::[^\s/@]{0,256})?@"),
+    re.compile(r"(?i)\b(?P<keep>[a-z][a-z0-9+.-]{0,31}://)[^\s/@:]*(?::[^\s/@]*)?@"),
     re.compile(r"-----BEGIN [A-Z ]{0,40}PRIVATE KEY-----(?:[\s\S]*?-----END [A-Z ]{0,40}PRIVATE KEY-----|[\s\S]*)"),
     re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]*"),
     re.compile(r"\b(?:sk|rk|pk)[-_][A-Za-z0-9_-]{16,}"),
     re.compile(r"\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[abposr]-[A-Za-z0-9-]{10,})"),
-    re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b|\bAIza[0-9A-Za-z_-]{35}"),
+    re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b|\bAIza[0-9A-Za-z_-]{35,}"),
 )
 
 
