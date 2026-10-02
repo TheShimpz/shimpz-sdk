@@ -7,7 +7,7 @@ use shimpz_genesis::{
     ActionContract, AssistantContract, AssistantManifest, ContractError, Message,
 };
 
-const SCHEMA_VECTORS: &str = include_str!("../protocol/assistant/v1/action-schema-vectors.json");
+const SCHEMA_VECTORS: &str = include_str!("../protocol/assistant/v1/vectors/action-schema.json");
 const MANIFEST: &str = r#"
 [shimpz]
 spec = 1

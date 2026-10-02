@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-from ._protocol.action_effect_validator import (
+from ._protocol.action_effect import (
     KEY_LOCATIONS,
     KEY_NAME,
     KEY_SCOPES,

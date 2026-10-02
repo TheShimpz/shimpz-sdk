@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use shimpz_genesis::{ActionContract, AssistantContract, AssistantManifest, Message};
 
-const VECTORS: &str = include_str!("../protocol/assistant/v1/input-file-vectors.json");
+const VECTORS: &str = include_str!("../protocol/assistant/v1/vectors/input-file.json");
 const MANIFEST: &str = r#"
 [shimpz]
 spec = 1

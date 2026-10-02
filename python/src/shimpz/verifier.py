@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Literal
 
-from ._protocol.action_effect_validator import MAX_BINDING_NAME, MAX_BINDINGS, pointer_tokens
+from ._protocol.action_effect import MAX_BINDING_NAME, MAX_BINDINGS, pointer_tokens
 from ._request import valid_id
 
 Effect = Literal["read_only", "mutating"]

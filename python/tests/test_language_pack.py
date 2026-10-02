@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from shimpz._bridge import dispatch, main
 from shimpz._language_pack import PackRefusedError
-from shimpz._protocol.message_catalog_validator import (
+from shimpz._protocol.message_catalog import (
     LOCALES,
     PACK_FORMAT,
     canonical_json,

@@ -14,7 +14,7 @@ from shimpz._files import bind_files
 from shimpz._project import AssistantProject
 
 ROOT = Path(__file__).parents[2]
-VECTORS = ROOT / "crates/shimpz-genesis/protocol/assistant/v1/file-invocation-vectors.json"
+VECTORS = ROOT / "crates/shimpz-genesis/protocol/assistant/v1/vectors/file-invocation.json"
 OPERATION_ID = "6f1c2b8e-3a4d-4c5e-9f60-718293a4b5c6"
 FILE_ID = "0123456789abcdef0123456789abcdef"
 CONTENT = b"name,amount\nexample,42\n"

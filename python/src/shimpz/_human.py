@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 
-from ._protocol.human_request_validator import fingerprint, request_error
+from ._protocol.human_request import fingerprint, request_error
 
 MAX_REQUESTS = 8
 

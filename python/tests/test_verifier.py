@@ -13,7 +13,7 @@ from shimpz.action import get_action_metadata
 from shimpz.verifier import Binding
 
 ROOT = Path(__file__).parents[2]
-VECTORS = ROOT / "crates/shimpz-genesis/protocol/assistant/v1/action-effect-vectors.json"
+VECTORS = ROOT / "crates/shimpz-genesis/protocol/assistant/v1/vectors/action-effect.json"
 MANIFEST = """
 [shimpz]
 spec = 1

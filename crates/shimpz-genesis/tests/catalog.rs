@@ -197,7 +197,7 @@ fn refuses_unknown_kinds_bounds_and_members() {
     assert!(build(vec![extra]).is_err());
 }
 
-const CATALOG_VECTORS: &str = include_str!("../protocol/assistant/v1/catalog-vectors.json");
+const CATALOG_VECTORS: &str = include_str!("../protocol/assistant/v1/vectors/catalog.json");
 /// Reference refusals that depend only on language-neutral structure, which
 /// Genesis must refuse as well. Unicode text refusals stay with the binding.
 const STRUCTURAL_ERRORS: [&str; 8] = [

@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, BinaryIO
 
 from ._project import load_catalog_document
-from ._protocol.message_catalog_validator import MAX_PACK_BYTES, catalog_digest, pack_digest, pack_error
+from ._protocol.message_catalog import MAX_PACK_BYTES, catalog_digest, pack_digest, pack_error
 
 if TYPE_CHECKING:
     from pathlib import Path

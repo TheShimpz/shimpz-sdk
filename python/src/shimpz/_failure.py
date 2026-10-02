@@ -6,7 +6,7 @@ import re
 from collections.abc import Iterable
 from urllib.parse import urlsplit
 
-from ._protocol.failure_validator import ERROR_TYPE, MAX_PROVIDER, PROVIDER, failure_error
+from ._protocol.failure import ERROR_TYPE, MAX_PROVIDER, PROVIDER, failure_error
 from ._redaction import Sanitizer
 
 # A fallback never reflects the failed projection, not even its exception type.

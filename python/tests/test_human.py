@@ -10,7 +10,7 @@ from shimpz._human import HumanRequestSuspension, StoredInputRejection, _fingerp
 from shimpz.context import ActionDeclaration
 
 VECTORS = json.loads(
-    (Path(__file__).parents[2] / "crates/shimpz-genesis/protocol/assistant/v1/human-request-vectors.json").read_text(
+    (Path(__file__).parents[2] / "crates/shimpz-genesis/protocol/assistant/v1/vectors/human-request.json").read_text(
         encoding="utf-8"
     )
 )

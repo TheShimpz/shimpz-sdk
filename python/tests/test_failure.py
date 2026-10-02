@@ -14,12 +14,12 @@ from shimpz import _failure as failure_module
 from shimpz._failure import FALLBACK_TYPE, failure_envelope
 from shimpz._human import HumanRequestSuspension
 from shimpz._project import AssistantProject
-from shimpz._protocol.failure_validator import failure_error
+from shimpz._protocol.failure import failure_error
 from shimpz._redaction import REDACTED, WINDOW
 from shimpz._runtime import ActionFailure, ActionInvocation, invoke_action
 
 ROOT = Path(__file__).parents[2]
-VECTORS = ROOT / "crates/shimpz-genesis/protocol/assistant/v1/failure-vectors.json"
+VECTORS = ROOT / "crates/shimpz-genesis/protocol/assistant/v1/vectors/failure.json"
 OPERATION_ID = "6f1c2b8e-3a4d-4c5e-9f60-718293a4b5c6"
 REPLACEMENT = chr(0xFFFD)
 MANIFEST = """

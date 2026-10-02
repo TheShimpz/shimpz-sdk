@@ -29,9 +29,9 @@ label = "API token"
 description = "Token used to call the provider."
 "#;
 
-const ID_VECTORS: &str = include_str!("../protocol/assistant/v1/manifest-id-vectors.json");
+const ID_VECTORS: &str = include_str!("../protocol/assistant/v1/vectors/manifest-id.json");
 const ID_VECTORS_SHA256: &str = "35ac6d8b22faf1f000a0bb00c4446703282bc178b950e199a76b238524de68fa";
-const MANIFEST_VECTORS: &str = include_str!("../protocol/assistant/v1/manifest-vectors.json");
+const MANIFEST_VECTORS: &str = include_str!("../protocol/assistant/v1/vectors/manifest.json");
 
 #[derive(Deserialize)]
 struct IdVectors {

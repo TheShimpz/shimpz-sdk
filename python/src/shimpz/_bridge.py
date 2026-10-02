@@ -13,7 +13,7 @@ from ._human import HumanRequestSuspension, StoredInputRejection
 from ._json import strict_loads
 from ._language_pack import read_pack, verify_pack
 from ._project import AssistantProject, load_catalog_document
-from ._protocol.input_file_validator import (
+from ._protocol.input_file import (
     MAX_FILE_INVOCATION_BYTES,
     MAX_INVOCATION_BYTES,
     delivers_content,

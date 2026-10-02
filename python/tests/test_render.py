@@ -11,7 +11,7 @@ from shimpz._reference import render_reference, render_request
 from shimpz.context import ActionDeclaration
 
 VECTORS = json.loads(
-    (Path(__file__).parents[2] / "crates/shimpz-genesis/protocol/assistant/v1/catalog-vectors.json").read_text(
+    (Path(__file__).parents[2] / "crates/shimpz-genesis/protocol/assistant/v1/vectors/catalog.json").read_text(
         encoding="utf-8"
     )
 )

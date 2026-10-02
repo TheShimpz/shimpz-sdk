@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
 
-from ._protocol.input_file_validator import FILE_ID_SCHEMA, decode_content, invocation_files_error
+from ._protocol.input_file import FILE_ID_SCHEMA, decode_content, invocation_files_error
 from .file import File
 
 

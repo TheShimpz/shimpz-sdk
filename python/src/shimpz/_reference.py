@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 
-from ._protocol.human_request_validator import COPY_BOUNDS, fingerprint, reference_error, request_error
-from ._protocol.message_catalog_validator import message_id, public_text, render
+from ._protocol.human_request import COPY_BOUNDS, fingerprint, reference_error, request_error
+from ._protocol.message_catalog import message_id, public_text, render
 from .message import Text
 
 Catalog = Mapping[str, Mapping[str, object]]

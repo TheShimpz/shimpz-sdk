@@ -6,8 +6,8 @@ import ast
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from ._protocol.human_request_validator import COPY_BOUNDS
-from ._protocol.message_catalog_validator import FIELD_BOUNDS, PARAM_BOUNDS
+from ._protocol.human_request import COPY_BOUNDS
+from ._protocol.message_catalog import FIELD_BOUNDS, PARAM_BOUNDS
 
 CopyField = str
 Resolve = Callable[[ast.AST], str | None]

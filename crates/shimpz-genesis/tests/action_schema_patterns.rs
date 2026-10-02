@@ -4,8 +4,8 @@ use serde::Deserialize;
 use serde_json::{Map, Value, json};
 use shimpz_genesis::ActionContract;
 
-const SCHEMA_VECTORS: &str = include_str!("../protocol/assistant/v1/action-schema-vectors.json");
-const PATTERN_VECTORS: &str = include_str!("../protocol/assistant/v1/pattern-vectors.json");
+const SCHEMA_VECTORS: &str = include_str!("../protocol/assistant/v1/vectors/action-schema.json");
+const PATTERN_VECTORS: &str = include_str!("../protocol/assistant/v1/vectors/pattern.json");
 const PATTERN_ERROR: &str = "Action schema pattern is invalid";
 
 #[derive(Deserialize)]

@@ -8,7 +8,7 @@ import re
 from collections.abc import Iterable
 from urllib.parse import quote, quote_plus
 
-from ._protocol.failure_validator import MAX_TEXT_BYTES, UNSAFE_TEXT
+from ._protocol.failure import MAX_TEXT_BYTES, UNSAFE_TEXT
 
 REDACTED = "[REDACTED]"
 _REPLACEMENT = chr(0xFFFD)

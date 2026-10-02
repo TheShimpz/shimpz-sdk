@@ -4,7 +4,7 @@ use serde::Deserialize;
 use serde_json::json;
 use shimpz_genesis::validate_value;
 
-const PATTERN_VECTORS: &str = include_str!("../protocol/assistant/v1/pattern-vectors.json");
+const PATTERN_VECTORS: &str = include_str!("../protocol/assistant/v1/vectors/pattern.json");
 
 #[derive(Deserialize)]
 struct Vectors {

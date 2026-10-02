@@ -8,7 +8,7 @@ from pathlib import Path
 
 from ._extract import extract
 from ._extract_call import ExtractionError, MessageUse
-from ._protocol.message_catalog_validator import (
+from ._protocol.message_catalog import (
     SUMMARY_BOUND,
     catalog_error,
     message_error,
