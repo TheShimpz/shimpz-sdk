@@ -18,8 +18,10 @@ _REPLACEMENT = chr(0xFFFD)
 WINDOW = 64 * 1_024
 _NAMED_SECRET = re.compile(
     r"(?i)(?:password|passwd|pwd|secret|token|api[_-]?key|apikey|access[_-]?key|private[_-]?key|authorization"
-    r"|cookie|session[_-]?id|signature|credential|(?<![A-Za-z])key)[\w.-]{0,32}(?P<separator>[\"']?\s{0,4}[:=]\s{0,4}[\"']?)"
-    r"(?P<value>(?!\[REDACTED\])(?:(?:bearer|basic|token)\s+)?[^\s\"'&,;)}\]<>]+)"
+    r"|cookie|session[_-]?id|signature|credential|(?<![A-Za-z])key)[\w.-]{0,32}(?P<separator>[\"']?\s{0,4}[:=]\s{0,4})"
+    # A quoted value is consumed whole up to its unescaped closing quote, or to the end when that quote is missing.
+    r"(?:(?P<quote>[\"'])(?P<quoted>(?!\[REDACTED\](?P=quote))(?:\\[\s\S]?|(?!(?P=quote))[^\\])*)(?P=quote)?"
+    r"|(?P<value>(?!\[REDACTED\])(?:(?:bearer|basic|token)\s+)?[^\s\"'&,;)}\]<>]+))"
 )
 _SHAPED_SECRETS = (
     re.compile(r"(?i)\b(?P<keep>(?:bearer|basic|digest|token)\s+)[A-Za-z0-9._~+/=-]{8,}"),
@@ -87,7 +89,10 @@ _UNSAFE = re.compile(UNSAFE_TEXT.pattern[:-1] + r"\ud800-\udfff]")
 
 
 def _keep_name(match: re.Match[str]) -> str:
-    return match.string[match.start() : match.start("value")] + REDACTED
+    if match["quote"] is None:
+        return match.string[match.start() : match.start("value")] + REDACTED
+    # Keep the opening quote, and the closing quote only when the text had one.
+    return match.string[match.start() : match.start("quoted")] + REDACTED + match.string[match.end("quoted") : match.end()]
 
 
 def _replace(match: re.Match[str]) -> str:
