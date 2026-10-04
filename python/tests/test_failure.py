@@ -441,12 +441,27 @@ def test_the_packaged_validator_matches_every_failure_vector() -> None:
         'password:"' + "\\x" * 32_000,
         "password" + " " * 65_000 + ":",
         "key " * 16_000,
+        "cookie=" * 9_000,
+        "a://@" * 13_000,
         "-----BEGIN PRIVATE KEY-----" * 2_000,
         "https://" + "u" * 65_000,
         "https://" + "u:" * 32_000,
         "eyJ" + "a" * 65_000,
     ],
-    ids=["plain", "names", "named-value", "quoted-value", "spaced-name", "spaced-keys", "key-blocks", "url", "url-colons", "jwt"],
+    ids=[
+        "plain",
+        "names",
+        "named-value",
+        "quoted-value",
+        "spaced-name",
+        "spaced-keys",
+        "cookies",
+        "url-schemes",
+        "key-blocks",
+        "url",
+        "url-colons",
+        "jwt",
+    ],
 )
 def test_sanitization_stays_fast_on_adversarial_text(text: str) -> None:
     started = time.perf_counter()
@@ -476,10 +491,25 @@ def test_a_long_named_secret_is_replaced_whole_in_the_message_and_excerpt(length
         ('api_key: "unterminated value, with words', 'api_key: "[REDACTED]'),
         ('{"password":\n      "correct horse"}', '{"password":\n      "[REDACTED]"}'),
         ("token\t\t\t\t\t=\t\t\t\t\tplain-value tail", "token\t\t\t\t\t=\t\t\t\t\t[REDACTED] tail"),
+        ("Cookie: preference=dark; sid=remote-session\nnext", "Cookie: [REDACTED]\nnext"),
+        ("Set-Cookie: sid=remote-session; Path=/", "Set-Cookie: [REDACTED]"),
+        ('{"cookie":"a=b; sid=remote-session","user":"ada"}', '{"cookie":"[REDACTED]","user":"ada"}'),
+        ("GET https://user:abc@private-tail@api.example.com/login", "GET https://[REDACTED]api.example.com/login"),
     ],
-    ids=["json", "single-quoted", "escaped-quote", "unterminated", "indented-json", "wide-separator"],
+    ids=[
+        "json",
+        "single-quoted",
+        "escaped-quote",
+        "unterminated",
+        "indented-json",
+        "wide-separator",
+        "cookie-list",
+        "set-cookie",
+        "json-cookie",
+        "url-at-in-password",
+    ],
 )
-def test_a_quoted_named_secret_is_replaced_whole(text: str, safe: str) -> None:
+def test_a_named_secret_value_is_replaced_whole(text: str, safe: str) -> None:
     response = _Response(401, text, "application/json")
 
     failure = _failure(HTTPStatusError(text, response))

@@ -25,7 +25,10 @@ _NAMED_SECRET = re.compile(
 )
 _SHAPED_SECRETS = (
     re.compile(r"(?i)\b(?P<keep>(?:bearer|basic|digest|token)\s+)[A-Za-z0-9._~+/=-]{8,}"),
-    re.compile(r"(?i)\b(?P<keep>[a-z][a-z0-9+.-]{0,31}://)[^\s/@:]*(?::[^\s/@]*)?@"),
+    # URL user information runs to the last "@" of the authority, as urllib splits it.
+    re.compile(r"(?i)\b(?P<keep>[a-z][a-z0-9+.-]{0,31}://)[^\s/?#]*@"),
+    # An unquoted cookie list carries several named credentials, so its whole line is withheld.
+    re.compile(r"(?i)\b(?P<keep>cookies?[\w.-]{0,32}[\"']?\s*[:=]\s*)(?![\"'])[^\r\n]+"),
     re.compile(r"-----BEGIN [A-Z ]{0,40}PRIVATE KEY-----(?:[\s\S]*?-----END [A-Z ]{0,40}PRIVATE KEY-----|[\s\S]*)"),
     re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]*"),
     re.compile(r"\b(?:sk|rk|pk)[-_][A-Za-z0-9_-]{16,}"),
@@ -92,7 +95,9 @@ def _keep_name(match: re.Match[str]) -> str:
     if match["quote"] is None:
         return match.string[match.start() : match.start("value")] + REDACTED
     # Keep the opening quote, and the closing quote only when the text had one.
-    return match.string[match.start() : match.start("quoted")] + REDACTED + match.string[match.end("quoted") : match.end()]
+    return (
+        match.string[match.start() : match.start("quoted")] + REDACTED + match.string[match.end("quoted") : match.end()]
+    )
 
 
 def _replace(match: re.Match[str]) -> str:
