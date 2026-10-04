@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -24,6 +25,12 @@ from ._runtime import ActionFailure, ActionInvocation, invoke_action
 from .context import valid_operation_id
 
 _MAX_REQUEST_BYTES = MAX_INVOCATION_BYTES
+# The invocation schema's Integration and Stored Input bounds.
+_IDENTIFIER = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*")
+_MAX_IDENTIFIER = 64
+_MAX_INTEGRATIONS = 4
+_MAX_INTEGRATION_TOKEN = 16384
+_MAX_STORED_INPUT = 1024
 
 
 def main(arguments: list[str] | None = None) -> int:
@@ -138,9 +145,8 @@ def _request(source: TextIO) -> dict[str, Any]:
         )
         and valid_operation_id(payload["operation_id"])
         and isinstance(payload["input"], dict)
-        and isinstance(payload["integrations"], dict)
-        and all(isinstance(key, str) and isinstance(value, str) for key, value in payload["integrations"].items())
-        and _valid_stored_inputs(payload["stored_inputs"])
+        and _valid_secrets(payload["integrations"], _MAX_INTEGRATIONS, _MAX_INTEGRATION_TOKEN)
+        and _valid_secrets(payload["stored_inputs"], 1, _MAX_STORED_INPUT)
         and files_shape_error(payload["files"]) is None
         and (
             "responses" not in payload
@@ -157,12 +163,18 @@ def _request(source: TextIO) -> dict[str, Any]:
     return payload
 
 
-def _valid_stored_inputs(value: object) -> bool:
+def _valid_secrets(value: object, count: int, length: int) -> bool:
+    """An Integration or Stored Input map: at most ``count`` identifiers, each with 1 to ``length`` characters."""
     return (
         isinstance(value, dict)
-        and len(value) <= 1
+        and len(value) <= count
         and all(
-            isinstance(key, str) and isinstance(item, str) and 1 <= len(item) <= 1024 for key, item in value.items()
+            isinstance(key, str)
+            and len(key) <= _MAX_IDENTIFIER
+            and _IDENTIFIER.fullmatch(key) is not None
+            and isinstance(item, str)
+            and 1 <= len(item) <= length
+            for key, item in value.items()
         )
     )
 

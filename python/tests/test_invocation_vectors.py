@@ -66,3 +66,35 @@ def test_an_invocation_without_a_well_formed_files_object_is_refused(tmp_path: P
 
     with pytest.raises(ValueError, match="private bridge request is invalid"):
         dispatch(["invoke", str(root), "greet"], io.StringIO(json.dumps(frame)))
+
+
+@pytest.mark.parametrize(
+    ("member", "value"),
+    [
+        ("integrations", {"cloudflare": "t" * 16385}),
+        ("integrations", {"cloudflare": ""}),
+        ("integrations", {f"provider-{index}": "token" for index in range(5)}),
+        ("integrations", {"Cloudflare": "token"}),
+        ("integrations", {"a" * 65: "token"}),
+        ("stored_inputs", {"whatsapp-token": "t" * 1025}),
+        ("stored_inputs", {"whatsapp_token": "token"}),
+        ("stored_inputs", {"first": "token", "second": "token"}),
+    ],
+)
+def test_an_integration_or_stored_input_outside_the_schema_is_refused(member: str, value: object) -> None:
+    frame = {"input": {}, "integrations": {}, "stored_inputs": {}, "files": {}, "operation_id": OPERATION_ID}
+    frame[member] = value
+
+    assert _admitted(frame) is None
+
+
+def test_integration_and_stored_input_bounds_are_inclusive() -> None:
+    frame = {
+        "input": {},
+        "integrations": {f"provider-{index}": "t" * 16384 for index in range(4)},
+        "stored_inputs": {"whatsapp-token": "t" * 1024},
+        "files": {},
+        "operation_id": OPERATION_ID,
+    }
+
+    assert _admitted(frame) is not None
