@@ -18,7 +18,7 @@ _REPLACEMENT = chr(0xFFFD)
 WINDOW = 64 * 1_024
 _NAMED_SECRET = re.compile(
     r"(?i)(?:password|passwd|pwd|secret|token|api[_-]?key|apikey|access[_-]?key|private[_-]?key|authorization"
-    r"|cookie|session[_-]?id|signature|credential|(?<![A-Za-z])key)[\w.-]{0,32}(?P<separator>[\"']?\s{0,4}[:=]\s{0,4})"
+    r"|cookie|session[_-]?id|signature|credential|(?<![A-Za-z])key)[\w.-]{0,32}(?P<separator>[\"']?\s*[:=]\s*)"
     # A quoted value is consumed whole up to its unescaped closing quote, or to the end when that quote is missing.
     r"(?:(?P<quote>[\"'])(?P<quoted>(?!\[REDACTED\](?P=quote))(?:\\[\s\S]?|(?!(?P=quote))[^\\])*)(?P=quote)?"
     r"|(?P<value>(?!\[REDACTED\])(?:(?:bearer|basic|token)\s+)?[^\s\"'&,;)}\]<>]+))"
