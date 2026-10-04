@@ -1,5 +1,6 @@
 """Integrity of the reference validators shipped inside the Python package."""
 
+import os
 import runpy
 import sys
 from pathlib import Path
@@ -25,6 +26,12 @@ def test_packaged_validators_are_byte_identical_to_the_pinned_mirror(name: str) 
     assert (PACKAGED / name).read_bytes() == (MIRROR / "validators" / name).read_bytes()
 
 
+# The pinned upstream verifier opens each artifact with POSIX-only descriptor flags; its byte identity is still pinned on
+# every platform by the Rust mirror test, and the vectors still run through the SDK on every platform.
+@pytest.mark.skipif(
+    not (hasattr(os, "O_NOFOLLOW") and hasattr(os, "O_NONBLOCK")),
+    reason="the pinned Assistant Spec verifier needs POSIX descriptor flags",
+)
 def test_pinned_mirror_verifies_its_artifacts_and_vectors(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
