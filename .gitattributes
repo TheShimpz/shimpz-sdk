@@ -1,3 +1,4 @@
 /crates/shimpz-genesis/tests/fixtures/manifest-id-vectors.json text eol=lf
 /crates/shimpz-genesis/protocol/assistant/v1/** -text
 /crates/shimpz-genesis/protocol/source-package/v1/** -text
+/python/src/shimpz/_protocol/*_validator.py -text
