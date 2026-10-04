@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import builtins
 import re
+import sys
 from collections.abc import Iterable
 from urllib.parse import urlsplit
 
@@ -20,8 +22,9 @@ _TEXT_MEDIA = re.compile(r"(?:text/[\w.+-]+|application/(?:[\w.-]+\+)?(?:json|xm
 def failure_envelope(error: BaseException, secrets: Iterable[str], *, withhold_text: bool = False) -> dict[str, object]:
     """Return the failure envelope for ``error``; it never raises and never carries an unsanitized value.
 
-    ``withhold_text`` drops the free-text message and provider excerpt, for an invocation bound to a Team file whose
-    name and content no exact redaction can find inside arbitrary text (ADR-0093).
+    ``withhold_text`` keeps only diagnostics whose identity cannot derive from data, for an invocation bound to a Team
+    file whose name and content no exact redaction can find inside arbitrary text (ADR-0093): the message, provider,
+    and excerpt are withheld, and the error type survives only for a builtin or SDK exception class.
     """
     sanitizer = Sanitizer(secrets)
     try:
@@ -29,7 +32,9 @@ def failure_envelope(error: BaseException, secrets: Iterable[str], *, withhold_t
     except _PROBE_ERRORS:
         failure = None
     if failure is not None and withhold_text:
-        failure.update(message="", response_excerpt=None, redacted=True, truncated=False)
+        failure.update(message="", provider=None, response_excerpt=None, redacted=True, truncated=False)
+        if not _static_type(error):
+            failure["error_type"] = FALLBACK_TYPE
     envelope = {"type": "failure", "failure": failure}
     if failure is None or failure_error(envelope) is not None:
         envelope["failure"] = _fallback()
@@ -72,6 +77,14 @@ def _error_type(error: BaseException, sanitizer: Sanitizer) -> str:
         sanitizer.redacted = True
         return FALLBACK_TYPE
     return word
+
+
+def _static_type(error: BaseException) -> bool:
+    """Whether the error's class is the builtin or SDK class its name resolves to, never a data-derived one."""
+    kind = type(error)
+    module = getattr(kind, "__module__", "")
+    owner = builtins if module == "builtins" else sys.modules.get(module) if module.startswith("shimpz.") else None
+    return owner is not None and getattr(owner, getattr(kind, "__qualname__", ""), None) is kind
 
 
 def _fallback() -> dict[str, object]:

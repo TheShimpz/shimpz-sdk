@@ -107,6 +107,13 @@ class Result(TypedDict):
 async def run(document: File, folder: str, *, ctx: Context) -> Result:
     if folder == "early":
         raise ValueError(f"cannot store {document.name}")
+    if folder == "provider":
+        error = ValueError("provider failed")
+        error.request = type("Request", (), {"url": f"https://{document.name}/upload"})()
+        error.response = type("Response", (), {"status_code": 502, "text": document.name, "headers": {}})()
+        raise error
+    if folder == "dynamic":
+        raise type(document.name.replace("-", "_").replace(".", "_"), (ValueError,), {})("data-derived type")
     ctx.request_approval(title=text("Store the document"), description=text("Store the selected document."))
     data = document.read()
     raise ValueError(f"bad row in {document.name}: {data.decode()} {data!r} {document!r}")
@@ -338,8 +345,18 @@ def test_delivered_content_admits_an_8_mib_file_within_12_mib(tmp_path: Path) ->
         invoke(root, json.dumps(value))
 
 
-@pytest.mark.parametrize("folder", ["early", "late"])
-def test_a_failure_of_a_file_taking_action_withholds_its_free_text(tmp_path: Path, folder: str) -> None:
+@pytest.mark.parametrize(
+    ("folder", "error_type", "status"),
+    [
+        ("early", "ValueError", None),
+        ("late", "ValueError", None),
+        ("provider", "ValueError", 502),
+        ("dynamic", "Exception", None),
+    ],
+)
+def test_a_failure_of_a_file_taking_action_withholds_its_data_derived_text(
+    tmp_path: Path, folder: str, error_type: str, status: int | None
+) -> None:
     root = create_project(tmp_path / "assistant", LEAKY)
     first = invoke(root, invocation({"type": "withheld"}, folder=folder))
     if folder == "late":
@@ -350,10 +367,10 @@ def test_a_failure_of_a_file_taking_action_withholds_its_free_text(tmp_path: Pat
     assert first == {
         "type": "failure",
         "failure": {
-            "error_type": "ValueError",
+            "error_type": error_type,
             "message": "",
             "provider": None,
-            "http_status": None,
+            "http_status": status,
             "response_excerpt": None,
             "redacted": True,
             "truncated": False,
