@@ -17,13 +17,19 @@ _MAX_CHAIN = 8
 _TEXT_MEDIA = re.compile(r"(?:text/[\w.+-]+|application/(?:[\w.-]+\+)?(?:json|xml)|application/x-www-form-urlencoded)")
 
 
-def failure_envelope(error: BaseException, secrets: Iterable[str]) -> dict[str, object]:
-    """Return the failure envelope for ``error``; it never raises and never carries an unsanitized value."""
+def failure_envelope(error: BaseException, secrets: Iterable[str], *, withhold_text: bool = False) -> dict[str, object]:
+    """Return the failure envelope for ``error``; it never raises and never carries an unsanitized value.
+
+    ``withhold_text`` drops the free-text message and provider excerpt, for an invocation bound to a Team file whose
+    name and content no exact redaction can find inside arbitrary text (ADR-0093).
+    """
     sanitizer = Sanitizer(secrets)
     try:
         failure = _failure(error, sanitizer)
     except _PROBE_ERRORS:
         failure = None
+    if failure is not None and withhold_text:
+        failure.update(message="", response_excerpt=None, redacted=True, truncated=False)
     envelope = {"type": "failure", "failure": failure}
     if failure is None or failure_error(envelope) is not None:
         envelope["failure"] = _fallback()

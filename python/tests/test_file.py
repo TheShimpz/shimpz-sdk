@@ -93,6 +93,25 @@ async def run(document: File, folder: str, *, ctx: Context) -> Result:
     return {"bytes": len(document.read())}
 """
 
+LEAKY = """
+from typing import TypedDict
+
+from shimpz import Context, File, action, text
+
+
+class Result(TypedDict):
+    bytes: int
+
+
+@action(human_requests=["approval"])
+async def run(document: File, folder: str, *, ctx: Context) -> Result:
+    if folder == "early":
+        raise ValueError(f"cannot store {document.name}")
+    ctx.request_approval(title=text("Store the document"), description=text("Store the selected document."))
+    data = document.read()
+    raise ValueError(f"bad row in {document.name}: {data.decode()} {data!r} {document!r}")
+"""
+
 UNAUTHORIZED = """
 from typing import TypedDict
 
@@ -319,16 +338,42 @@ def test_delivered_content_admits_an_8_mib_file_within_12_mib(tmp_path: Path) ->
         invoke(root, json.dumps(value))
 
 
+@pytest.mark.parametrize("folder", ["early", "late"])
+def test_a_failure_of_a_file_taking_action_withholds_its_free_text(tmp_path: Path, folder: str) -> None:
+    root = create_project(tmp_path / "assistant", LEAKY)
+    first = invoke(root, invocation({"type": "withheld"}, folder=folder))
+    if folder == "late":
+        assert first["type"] == "request"
+        responses = [{"ordinal": 0, "fingerprint": first["request"]["fingerprint"], "kind": "approval", "value": True}]
+        first = invoke(root, invocation(DELIVERED, responses, folder=folder))
+
+    assert first == {
+        "type": "failure",
+        "failure": {
+            "error_type": "ValueError",
+            "message": "",
+            "provider": None,
+            "http_status": None,
+            "response_excerpt": None,
+            "redacted": True,
+            "truncated": False,
+        },
+    }
+
+
 def test_file_is_immutable_and_never_shows_its_bytes() -> None:
-    document = File(FILE_ID, "a.txt", "text/plain", 1, "0" * 64, b"a")
-    withheld = File(FILE_ID, "a.txt", "text/plain", 1, "0" * 64)
+    document = File(FILE_ID, "confidential-payroll.csv", "text/plain", 1, "0" * 64, b"a")
+    withheld = File(FILE_ID, "confidential-payroll.csv", "text/plain", 1, "0" * 64)
 
     assert not withheld.delivered
     with pytest.raises(FileContentWithheldError, match="withheld"):
         withheld.read()
     assert document.delivered
     assert document.read() == b"a"
-    assert "_content" not in repr(document)
+    for value in (document, withheld):
+        assert "_content" not in repr(value)
+        assert "confidential-payroll" not in repr(value)
+    assert document.name == "confidential-payroll.csv"
     with pytest.raises(AttributeError):
         document.name = "b.txt"  # type: ignore[misc]
 

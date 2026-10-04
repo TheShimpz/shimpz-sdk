@@ -107,7 +107,7 @@ async def invoke_action(
         except ValueError as error:
             failure = error
     if failure is not None:
-        raise ActionFailure(failure_envelope(failure, _secrets(invocation, context))) from None
+        raise ActionFailure(failure_envelope(failure, _secrets(invocation, context), withhold_text=bool(files))) from None
     return result
 
 

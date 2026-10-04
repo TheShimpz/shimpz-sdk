@@ -22,10 +22,11 @@ class File:
     The metadata is always present. The original bytes, at most 8 MiB, exist only after the Action's declared
     authorization; ``read`` raises ``FileContentWithheldError`` until then and never returns an empty substitute.
     ``name`` is the literal Team filename, never a path, and ``media_type`` is the type Team determined from the bytes.
+    Neither the name nor the bytes appear in ``repr``.
     """
 
     id: str
-    name: str
+    name: str = field(repr=False)
     media_type: str
     size: int
     sha256: str
