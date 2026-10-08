@@ -214,32 +214,34 @@ def test_password_is_final_and_cannot_be_returned() -> None:
         context._finish({"connection": "user:provider-secret@host"})
 
 
-def test_stored_input_suspends_when_missing_and_reuses_without_an_ordinal() -> None:
-    request = InputRequest(
+def _slot(stored_input: str) -> InputRequest:
+    return InputRequest(
         "password",
         text("WhatsApp token"),
         text("Enter the token used by this WhatsApp Action."),
         text("Token"),
         min_length=1,
-        stored_input="whatsapp-token",
+        stored_input=stored_input,
     )
 
+
+def test_stored_input_suspends_when_missing_and_is_answered_only_by_injection() -> None:
     def collect(context: Context):
-        return context.request_input(request)
+        return context.request_input(_slot("whatsapp-token"))
 
     missing = Context({}, declared("input:password", stored_inputs=("whatsapp-token",)))
     frame = suspend(missing, collect)
     assert frame["stored_input"] == "whatsapp-token"
     assert frame["ordinal"] == 0
 
-    submitted = Context(
+    # Team seals the answer and injects it; a replay response for a Stored Input request is a divergence.
+    answered = Context(
         {},
         declared("input:password", stored_inputs=("whatsapp-token",)),
         [response(frame, "new-provider-secret")],
     )
-    assert collect(submitted) == "new-provider-secret"
-    with pytest.raises(StoredInputRejection):
-        submitted.reject_stored_input("whatsapp-token")
+    with pytest.raises(ValueError, match="diverged"):
+        collect(answered)
 
     reused = Context(
         {},
@@ -247,10 +249,63 @@ def test_stored_input_suspends_when_missing_and_reuses_without_an_ordinal() -> N
         stored_inputs={"whatsapp-token": "provider-secret"},
     )
     assert collect(reused) == "provider-secret"
+    with pytest.raises(StoredInputRejection):
+        reused.reject_stored_input("whatsapp-token")
     with pytest.raises(ValueError, match="final human request"):
         reused.request_approval(title=text("Continue"), description=text("Continue the operation."))
     with pytest.raises(ValueError, match="exposes"):
         reused._finish({"token": "provider-secret"})
+
+
+def test_several_stored_inputs_are_returned_together_once_every_one_is_held() -> None:
+    slots = ("app-secret", "whatsapp-token")
+    declaration = declared("approval", "input:password", stored_inputs=slots)
+
+    def collect(context: Context):
+        context.request_approval(title=text("Continue"), description=text("Continue the operation."))
+        return context.request_stored_inputs(_slot("whatsapp-token"), _slot("app-secret"))
+
+    approval = suspend(Context({}, declaration), collect)
+    approved = [response(approval, True)]
+    # Each missing slot suspends in turn at the same next ordinal, before any value is returned.
+    first = suspend(Context({}, declaration, approved), collect)
+    assert (first["stored_input"], first["ordinal"]) == ("whatsapp-token", 1)
+    second = suspend(Context({}, declaration, approved, stored_inputs={"whatsapp-token": "token-value"}), collect)
+    assert (second["stored_input"], second["ordinal"]) == ("app-secret", 1)
+
+    held = {"whatsapp-token": "token-value", "app-secret": "secret-value"}
+    context = Context({}, declaration, approved, stored_inputs=held)
+    assert collect(context) == ("token-value", "secret-value")
+    with pytest.raises(ValueError, match="final human request"):
+        context.request_stored_inputs(_slot("app-secret"))
+    for leaked in ("token-value", "secret-value"):
+        with pytest.raises(ValueError, match="exposes"):
+            context._finish({"echo": leaked})
+    # A rejection names exactly one returned slot.
+    with pytest.raises(StoredInputRejection) as rejected:
+        context.reject_stored_input("app-secret")
+    assert rejected.value.stored_input == "app-secret"
+
+
+def test_stored_input_batches_refuse_undeclared_duplicate_or_ordinary_requests() -> None:
+    context = Context({}, declared("input:password", stored_inputs=("app-secret", "whatsapp-token")))
+    with pytest.raises(ValueError, match="undeclared"):
+        context.request_stored_inputs(_slot("whatsapp-token"), _slot("other-token"))
+    with pytest.raises(ValueError, match="distinct"):
+        context.request_stored_inputs(_slot("whatsapp-token"), _slot("whatsapp-token"))
+    ordinary = InputRequest("password", text("WhatsApp token"), text("Enter the provider secret."), text("Token"))
+    with pytest.raises(ValueError, match="undeclared"):
+        context.request_stored_inputs(ordinary)
+    with pytest.raises(TypeError):
+        context.request_stored_inputs()
+    with pytest.raises(ValueError, match="invocation is invalid"):
+        Context({}, declared("input:password", stored_inputs=tuple(f"slot-{index}" for index in range(9))))
+    with pytest.raises(ValueError, match="invocation is invalid"):
+        Context(
+            {},
+            declared("input:password", stored_inputs=("whatsapp-token",)),
+            stored_inputs={"other-token": "value"},
+        )
 
 
 def test_rejects_only_the_exact_resolved_stored_input() -> None:

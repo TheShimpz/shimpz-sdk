@@ -36,7 +36,7 @@ class HumanRequestRuntime:
         "_index",
         "_resolved_stored_inputs",
         "_responses",
-        "_secret",
+        "_secrets",
         "_stored_inputs",
         "_token_observed",
     )
@@ -58,7 +58,7 @@ class HumanRequestRuntime:
         self._index = 0
         self._stored_inputs = dict(stored_inputs or {})
         self._resolved_stored_inputs: set[str] = set()
-        self._secret: str | None = None
+        self._secrets: list[str] = []
         self._token_observed = False
 
     def authorized(self) -> bool:
@@ -97,18 +97,33 @@ class HumanRequestRuntime:
             self._observe_secret(value)
         return value
 
-    def resolve_stored_input(self, stored_input: str, descriptor: dict[str, object]) -> str:
-        """Reuse one injected value or resolve its exact password request."""
+    def resolve_stored_inputs(self, requests: Sequence[tuple[str, dict[str, object]]]) -> tuple[str, ...]:
+        """Return every requested Stored Input at once, or suspend for the first one Team does not hold yet.
+
+        A Stored Input request is answered only by injection: Team seals the person's answer and the replay receives it
+        in the invocation, so no value is observed, and the request phase stays open, until every one is held.
+        """
         self._validate_request_phase("input:password")
-        if stored_input in self._stored_inputs:
-            value = self._stored_inputs[stored_input]
+        for stored_input, descriptor in requests:
+            if stored_input not in self._stored_inputs:
+                self._suspend_for_stored_input(descriptor)
+        values = tuple(self._stored_inputs[stored_input] for stored_input, _descriptor in requests)
+        for value in values:
             self._observe_secret(value)
-        else:
-            value = self.resolve("input:password", descriptor)
-            if not isinstance(value, str):
-                raise ValueError("Action human input response is invalid")
-        self._resolved_stored_inputs.add(stored_input)
-        return value
+        self._resolved_stored_inputs.update(stored_input for stored_input, _descriptor in requests)
+        return values
+
+    def _suspend_for_stored_input(self, descriptor: dict[str, object]) -> None:
+        if self._index >= MAX_REQUESTS:
+            raise ValueError("Action exceeded its human request limit")
+        if self._index < len(self._responses):
+            # Team never answers a Stored Input request with a replay response.
+            raise ValueError("Action human response transcript diverged")
+        request = {"kind": "input:password", "ordinal": self._index, **descriptor}
+        error = request_error(request, self._catalog)
+        if error is not None:
+            raise ValueError(f"Action human request is invalid: {error}")
+        raise HumanRequestSuspension({**request, "fingerprint": _fingerprint(request)})
 
     def reject_stored_input(self, stored_input: str) -> None:
         """Terminate with an exact rejection only after resolving that slot."""
@@ -121,19 +136,19 @@ class HumanRequestRuntime:
             raise ValueError("Action human request capability is undeclared")
         if self._token_observed:
             raise ValueError("Action cannot request human input after observing an Integration token")
-        if self._secret is not None:
+        if self._secrets:
             raise ValueError("Action password input must be its final human request")
 
     def _observe_secret(self, value: object) -> None:
         if not isinstance(value, str):
             raise ValueError("Action human input response is invalid")
-        self._secret = value
+        self._secrets.append(value)
 
     def finish(self, result: object) -> None:
         """Reject an unused response or exact password echo in the Action result."""
         if self._index != len(self._responses):
             raise ValueError("Action human response transcript diverged")
-        if self._secret and _contains(result, self._secret):
+        if any(secret and _contains(result, secret) for secret in self._secrets):
             raise ValueError("Action result exposes human password input")
 
 

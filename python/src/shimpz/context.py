@@ -17,6 +17,8 @@ from .message import Text
 Authentication = Literal["password", "totp", "passkey"]
 _MAX_SECRET = 16_384
 _MAX_SECRETS = 64
+# The most Stored Inputs one Action may use: every one its manifest can declare.
+_MAX_STORED_INPUTS = 8
 # The canonical lowercase text of a random RFC 9562 version 4 UUID, exactly as Team mints it.
 _OPERATION_ID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}")
 
@@ -100,11 +102,10 @@ class Context:
         declared = tuple(reviewed.stored_inputs)
         values = dict(stored_inputs or {})
         if (
-            len(declared) > 1
+            len(declared) > _MAX_STORED_INPUTS
             or len(declared) != len(set(declared))
             or any(not valid_id(stored_input) for stored_input in declared)
             or set(values) - set(declared)
-            or len(values) > 1
             or any(not isinstance(value, str) or not 1 <= len(value) <= 1024 for value in values.values())
         ):
             raise ValueError("Action Stored Input invocation is invalid")
@@ -150,20 +151,35 @@ class Context:
         self._human.resolve(f"auth:{authentication}", descriptor)
 
     def request_input(self, request: InputRequest) -> str | list[str]:
-        """Pause for one closed, specialized input field."""
+        """Pause for one closed, specialized input field.
+
+        A request naming a Stored Input returns that value the way ``request_stored_inputs`` returns several.
+        """
         if not isinstance(request, InputRequest):
             raise TypeError("Action input request is invalid")
-        capability = f"input:{request.kind}"
-        descriptor = input_descriptor(request, self._catalog)
-        if request.stored_input is None:
-            value = self._human.resolve(capability, descriptor)
-        else:
-            if request.stored_input not in self._stored_input_ids:
-                raise ValueError("Action Stored Input is undeclared")
-            value = self._human.resolve_stored_input(request.stored_input, descriptor)
+        if request.stored_input is not None:
+            return self.request_stored_inputs(request)[0]
+        value = self._human.resolve(f"input:{request.kind}", input_descriptor(request, self._catalog))
         if not isinstance(value, str | list):
             raise ValueError("Action human input response is invalid")
         return value
+
+    def request_stored_inputs(self, *requests: InputRequest) -> tuple[str, ...]:
+        """Return the values of several declared Stored Inputs together, in request order.
+
+        Each request is a password ``InputRequest`` naming a distinct Stored Input this Action declares. Team asks the
+        person only for a value it does not keep yet, one request at a time, and returns no value until it holds all
+        of them, so the Action can use none before it has every one. No human request may follow.
+        """
+        if not requests or not all(isinstance(request, InputRequest) for request in requests):
+            raise TypeError("Action Stored Input requests are invalid")
+        stored_inputs = [request.stored_input for request in requests]
+        if any(stored_input not in self._stored_input_ids for stored_input in stored_inputs):
+            raise ValueError("Action Stored Input is undeclared")
+        if len(set(stored_inputs)) != len(stored_inputs):
+            raise ValueError("Action Stored Input requests must be distinct")
+        descriptors = [input_descriptor(request, self._catalog) for request in requests]
+        return self._human.resolve_stored_inputs(list(zip(stored_inputs, descriptors, strict=True)))
 
     def reject_stored_input(self, stored_input: str) -> None:
         """Reject one exact Stored Input resolved by this invocation."""

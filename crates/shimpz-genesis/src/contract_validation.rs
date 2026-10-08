@@ -10,6 +10,8 @@ use crate::{AssistantManifest, ContractError};
 const MAX_SCHEMA_BYTES: usize = 128 * 1024;
 /// Publication admits at most this many JSON values in one Action schema.
 const MAX_SCHEMA_NODES: usize = 4096;
+/// The most Stored Inputs one Action may use: every one its manifest can declare.
+const MAX_ACTION_STORED_INPUTS: usize = 8;
 const HUMAN_REQUEST_CAPABILITIES: [&str; 11] = [
     "approval",
     "input:text",
@@ -62,10 +64,12 @@ fn validate_action_ids(
     {
         return Err(ContractError::new("Action integrations are invalid"));
     }
-    if stored_inputs.len() > 1
+    // An Action may use any of its manifest's Stored Inputs as one sorted, unique list.
+    if stored_inputs.len() > MAX_ACTION_STORED_INPUTS
         || stored_inputs
             .iter()
             .any(|stored_input| !valid_id(stored_input))
+        || stored_inputs.windows(2).any(|pair| pair[0] >= pair[1])
     {
         return Err(ContractError::new("Action Stored Inputs are invalid"));
     }

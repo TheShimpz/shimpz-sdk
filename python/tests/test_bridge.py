@@ -86,6 +86,36 @@ async def run(name: str, *, ctx: Context) -> Result:
 """
 
 
+PAIR_ACTION = """
+from typing import TypedDict
+
+from shimpz import Context, InputRequest, action, text
+
+
+class Result(TypedDict):
+    accepted: bool
+
+
+def slot(stored_input: str) -> InputRequest:
+    return InputRequest(
+        "password",
+        text("WhatsApp token"),
+        text("Enter the token used by this WhatsApp Action."),
+        text("Token"),
+        min_length=1,
+        stored_input=stored_input,
+    )
+
+
+@action(stored_inputs=["whatsapp-app-secret", "whatsapp-token"], human_requests=["input:password"])
+async def run(name: str, *, ctx: Context) -> Result:
+    token, secret = ctx.request_stored_inputs(slot("whatsapp-token"), slot("whatsapp-app-secret"))
+    if secret == "invalid":
+        ctx.reject_stored_input("whatsapp-app-secret")
+    return {"accepted": bool(token)}
+"""
+
+
 def create_project(root: Path, source: str = ACTION, manifest: str = MANIFEST) -> Path:
     root.mkdir()
     write_icon(root)
@@ -200,6 +230,51 @@ description = "Token used to call the WhatsApp API."
     assert rejected == {
         "type": "stored_input_rejected",
         "stored_input": "whatsapp-token",
+    }
+
+
+def test_two_stored_inputs_suspend_one_at_a_time_and_reject_only_the_refused_one(tmp_path: Path) -> None:
+    manifest = (
+        MANIFEST
+        + """
+[stored_inputs.whatsapp-token]
+kind = "password"
+label = "WhatsApp token"
+description = "Token used to call the WhatsApp API."
+
+[stored_inputs.whatsapp-app-secret]
+kind = "password"
+label = "WhatsApp app secret"
+description = "App secret used to sign WhatsApp API calls."
+"""
+    )
+    root = create_project(tmp_path / "assistant", PAIR_ACTION, manifest)
+
+    def invoke(stored_inputs: dict[str, str]) -> dict[str, object]:
+        invocation = {
+            "input": {"name": "Ada"},
+            "integrations": {},
+            "stored_inputs": stored_inputs,
+            "files": {},
+            "operation_id": OPERATION_ID,
+        }
+        return json.loads(dispatch(["invoke", str(root), "greet"], io.StringIO(json.dumps(invocation))))
+
+    first = invoke({})
+    assert (first["type"], first["request"]["stored_input"], first["request"]["ordinal"]) == (
+        "request",
+        "whatsapp-token",
+        0,
+    )
+    second = invoke({"whatsapp-token": "token-value"})
+    assert (second["request"]["stored_input"], second["request"]["ordinal"]) == ("whatsapp-app-secret", 0)
+    assert invoke({"whatsapp-token": "token-value", "whatsapp-app-secret": "secret-value"}) == {
+        "type": "result",
+        "result": {"accepted": True},
+    }
+    assert invoke({"whatsapp-token": "token-value", "whatsapp-app-secret": "invalid"}) == {
+        "type": "stored_input_rejected",
+        "stored_input": "whatsapp-app-secret",
     }
 
 

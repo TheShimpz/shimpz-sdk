@@ -13,6 +13,8 @@ from .verifier import Effect, Verifier
 
 _METADATA_ATTRIBUTE = "__shimpz_action__"
 _AUTHORIZATION_REQUESTS = {"approval", "auth:password", "auth:totp", "auth:passkey"}
+# The most Stored Inputs one Action may use: every one its manifest can declare.
+_MAX_ACTION_STORED_INPUTS = 8
 
 Params = ParamSpec("Params")
 Result = TypeVar("Result")
@@ -134,10 +136,14 @@ def _validate_stored_inputs(stored_inputs: Iterable[str]) -> tuple[str, ...]:
         message = "stored_inputs must be an iterable of Stored Input ids"
         raise TypeError(message)
     stored_input_ids = tuple(stored_inputs)
-    if len(stored_input_ids) > 1 or not all(_valid_id(stored_input_id) for stored_input_id in stored_input_ids):
+    if (
+        len(stored_input_ids) > _MAX_ACTION_STORED_INPUTS
+        or len(stored_input_ids) != len(set(stored_input_ids))
+        or not all(_valid_id(stored_input_id) for stored_input_id in stored_input_ids)
+    ):
         message = "Action Stored Input declaration is invalid"
         raise ValueError(message)
-    return stored_input_ids
+    return tuple(sorted(stored_input_ids))
 
 
 def _valid_id(value: object) -> bool:

@@ -108,10 +108,29 @@ async def run(*, ctx: Context) -> CreatedDns:
     ...
 ```
 
-Team asks just in time when the slot is empty and reuses the sealed value later without another prompt. If the
-provider explicitly rejects the value, call `ctx.reject_stored_input("whatsapp-token")`; this terminates the Action
-and lets Team clear only that exact slot. Stored Input values are not available as a Context mapping and must never
-be logged or returned.
+Team asks just in time when the slot is empty, seals the answer as soon as the person submits it, and reuses it later
+without another prompt. If the provider explicitly rejects the value, call `ctx.reject_stored_input("whatsapp-token")`;
+this terminates the Action and lets Team clear only that exact slot. Stored Input values are not available as a
+Context mapping and must never be logged or returned.
+
+An Action may declare several of its manifest's Stored Inputs, up to all eight, and several Actions may share them;
+each Action receives only those it declares. Request every value it needs together with `ctx.request_stored_inputs`,
+which returns them in request order only once Team holds all of them, asking the person for each missing one in turn:
+
+```python
+@action(stored_inputs=["meta-access-token", "meta-app-secret"], human_requests=["input:password"])
+async def run(*, ctx: Context) -> Campaigns:
+    token, secret = ctx.request_stored_inputs(
+        InputRequest(kind="password", title=text("Meta access token"), description=text("..."),
+                     label=text("Access token"), stored_input="meta-access-token"),
+        InputRequest(kind="password", title=text("Meta app secret"), description=text("..."),
+                     label=text("App secret"), stored_input="meta-app-secret"),
+    )
+    ...
+```
+
+No human request may follow, so an Action never uses one value before it holds every one. Reject only the value the
+provider refused, for example the token on an invalid-token error and the secret on an invalid signature.
 
 A Stored Input declaration in `shimpz.toml` may name the page where a person creates the value:
 
@@ -174,7 +193,7 @@ required parameter of the verified Action whole (`from_input("/name")`). `outcom
 result, whose type is exactly the verified Action's return type. Report `not_occurred` only for authoritative terminal
 absence: the provider authoritatively reports that this operation does not exist and can no longer complete. Anything
 else, including an absence that may still be in flight or not yet consistent, is `inconclusive`. The verifier declares no human request, or only the password request
-of its own Stored Input.
+of its own Stored Inputs.
 
 When the provider deduplicates requests by key, send `ctx.operation_id` as that key and declare how the provider
 honors it; without the declaration Team relies on no provider idempotency:

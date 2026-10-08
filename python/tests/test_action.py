@@ -69,10 +69,32 @@ def test_rejects_a_string_as_the_human_request_collection() -> None:
         action(human_requests="approval")
 
 
-@pytest.mark.parametrize("stored_inputs", [["ApiToken"], ["api-token-"], ["one", "two"]])
+@pytest.mark.parametrize(
+    "stored_inputs", [["ApiToken"], ["api-token-"], ["one", "one"], [f"slot-{index}" for index in range(9)]]
+)
 def test_rejects_invalid_stored_inputs(stored_inputs: list[str]) -> None:
-    with pytest.raises(ValueError, match="Stored Input"):
-        action(stored_inputs=stored_inputs)
+    with pytest.raises(ValueError, match="Stored Input declaration is invalid"):
+        action(stored_inputs=stored_inputs, human_requests=["input:password"])
+
+
+def test_declares_several_stored_inputs_as_one_sorted_list() -> None:
+    @action(stored_inputs=["meta-app-secret", "meta-access-token"], human_requests=["input:password"])
+    async def run() -> str:
+        return ""
+
+    metadata = get_action_metadata(run)
+    assert metadata is not None
+    assert metadata.stored_inputs == ("meta-access-token", "meta-app-secret")
+
+    every = action(stored_inputs=[f"slot-{index}" for index in range(8)], human_requests=["input:password"])
+    assert len(get_action_metadata(every(_fresh_run())).stored_inputs) == 8
+
+
+def _fresh_run():
+    async def run() -> str:
+        return ""
+
+    return run
 
 
 def test_rejects_a_string_as_the_stored_input_collection() -> None:

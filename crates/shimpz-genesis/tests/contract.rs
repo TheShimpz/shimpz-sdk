@@ -55,6 +55,11 @@ allowed_hosts = ["graph.facebook.com"]
 kind = "password"
 label = "WhatsApp token"
 description = "Token used to call the WhatsApp API."
+
+[stored_inputs.whatsapp-app-secret]
+kind = "password"
+label = "WhatsApp app secret"
+description = "App secret used to sign WhatsApp API calls."
 "#;
 
 fn schema() -> Value {
@@ -164,7 +169,7 @@ fn rejects_undeclared_or_unused_integrations() {
 }
 
 #[test]
-fn admits_only_one_declared_stored_input_per_action() {
+fn admits_several_declared_stored_inputs_as_one_sorted_list() {
     let manifest = AssistantManifest::parse(STORED_INPUT_MANIFEST).expect("valid manifest");
     let action = ActionContract::new(
         "send-message",
@@ -195,16 +200,51 @@ fn admits_only_one_declared_stored_input_per_action() {
         "Action references an undeclared Stored Input"
     );
 
-    let too_many = ActionContract::new(
+    let both = ActionContract::new(
         "send-message",
         Vec::new(),
-        vec!["first".into(), "second".into()],
+        vec!["whatsapp-app-secret".into(), "whatsapp-token".into()],
         vec!["input:password".into()],
         schema(),
         schema(),
     )
-    .expect_err("too many Stored Inputs");
-    assert_eq!(too_many.message(), "Action Stored Inputs are invalid");
+    .expect("two declared Stored Inputs");
+    let contract = AssistantContract::build(&manifest, vec![both], catalog(&manifest))
+        .expect("an Action may use several Stored Inputs");
+    assert_eq!(
+        contract.actions()[0].stored_inputs(),
+        ["whatsapp-app-secret", "whatsapp-token"]
+    );
+
+    let eight: Vec<String> = (1..=8).map(|index| format!("key-{index}")).collect();
+    assert!(
+        ActionContract::new(
+            "send-message",
+            Vec::new(),
+            eight.clone(),
+            vec!["input:password".into()],
+            schema(),
+            schema(),
+        )
+        .is_ok()
+    );
+    let nine: Vec<String> = (1..=9).map(|index| format!("key-{index}")).collect();
+    for refused in [
+        nine,
+        vec!["whatsapp-token".into(), "whatsapp-token".into()],
+        vec!["whatsapp-token".into(), "whatsapp-app-secret".into()],
+    ] {
+        let error = ActionContract::new(
+            "send-message",
+            Vec::new(),
+            refused,
+            vec!["input:password".into()],
+            schema(),
+            schema(),
+        )
+        .expect_err("refused Stored Inputs");
+        assert_eq!(error.message(), "Action Stored Inputs are invalid");
+    }
 
     let missing_request = ActionContract::new(
         "send-message",
