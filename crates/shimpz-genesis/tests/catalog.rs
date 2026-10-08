@@ -67,7 +67,7 @@ fn zone_message() -> Value {
 #[test]
 fn carries_a_sorted_catalog_with_the_summary() {
     let contract = build(sorted(vec![
-        message(SUMMARY, 160, &json!([])),
+        message(SUMMARY, 80, &json!([])),
         zone_message(),
     ]))
     .expect("catalog");
@@ -87,7 +87,7 @@ fn carries_a_sorted_catalog_with_the_summary() {
 
 #[test]
 fn refuses_structural_catalog_errors() {
-    let summary = message(SUMMARY, 160, &json!([]));
+    let summary = message(SUMMARY, 80, &json!([]));
     let mut unsorted = sorted(vec![summary.clone(), zone_message()]);
     unsorted.reverse();
     let mut forged = zone_message();
@@ -150,7 +150,7 @@ fn admits_an_exact_dns_name_parameter_up_to_253_characters() {
         &json!([{"name": "name", "kind": "dns_name", "max_length": 253}]),
     );
     let contract =
-        build(sorted(vec![message(SUMMARY, 160, &json!([])), record])).expect("dns_name catalog");
+        build(sorted(vec![message(SUMMARY, 80, &json!([])), record])).expect("dns_name catalog");
     let declared = contract
         .messages()
         .iter()
@@ -162,7 +162,7 @@ fn admits_an_exact_dns_name_parameter_up_to_253_characters() {
 
 #[test]
 fn refuses_unknown_kinds_bounds_and_members() {
-    let summary = message(SUMMARY, 160, &json!([]));
+    let summary = message(SUMMARY, 80, &json!([]));
     for (params, max_length) in [
         (
             json!([{"name": "zone", "kind": "text", "max_length": 20}]),
@@ -227,7 +227,7 @@ fn generated(summary: &str, spec: &Value) -> Vec<Value> {
     } else {
         format!(" {}", "x".repeat(padding))
     };
-    let mut messages = vec![message(summary, 160, &json!([]))];
+    let mut messages = vec![message(summary, 80, &json!([]))];
     messages.extend((0..count - 1).map(|index| {
         message(
             &format!("{index:04}{fields}{tail}"),
@@ -244,7 +244,7 @@ fn nested(summary: &str, depth: u64) -> String {
     let depth = usize::try_from(depth).expect("depth");
     format!(
         "[{},{}{}]",
-        message(summary, 160, &json!([])),
+        message(summary, 80, &json!([])),
         "[".repeat(depth),
         "]".repeat(depth)
     )
@@ -252,7 +252,8 @@ fn nested(summary: &str, depth: u64) -> String {
 
 fn build_for(summary: &str, messages: &str) -> Result<AssistantContract, String> {
     let manifest = MANIFEST.replace(SUMMARY, summary);
-    let manifest = AssistantManifest::parse(&manifest).expect("vector summary manifest");
+    // A summary over the manifest's bound is refused before any catalog is built.
+    let manifest = AssistantManifest::parse(&manifest).map_err(|error| error.to_string())?;
     let schema =
         json!({"type": "object", "properties": {}, "required": [], "additionalProperties": false});
     let action = ActionContract::new(

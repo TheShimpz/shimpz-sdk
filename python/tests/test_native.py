@@ -29,7 +29,7 @@ SUMMARY = json.dumps(
         {
             "id": hashlib.sha256(b"Example Assistant.").hexdigest(),
             "msgid": "Example Assistant.",
-            "max_length": 160,
+            "max_length": 80,
             "params": [],
         }
     ]

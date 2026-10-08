@@ -71,7 +71,7 @@ fn catalog(manifest: &AssistantManifest) -> Vec<Message> {
     serde_json::from_value(json!([{
         "id": format!("{:x}", Sha256::digest(summary)),
         "msgid": summary,
-        "max_length": 160,
+        "max_length": 80,
         "params": []
     }]))
     .expect("summary catalog")
@@ -115,7 +115,7 @@ fn sorts_and_serializes_actions_deterministically() {
             "\"output_schema\":{\"additionalProperties\":false,\"properties\":{},",
             "\"required\":[],\"type\":\"object\"},\"effect\":\"mutating\"}],",
             "\"messages\":[{\"id\":\"7d7c8069bf8aba48cbbb7251ea3ac5a2c1a3be4a337c030f1f79311381e541db\",",
-            "\"msgid\":\"Manage DNS records.\",\"max_length\":160,\"params\":[]}]}"
+            "\"msgid\":\"Manage DNS records.\",\"max_length\":80,\"params\":[]}]}"
         )
     );
     assert_eq!(contract.sha256().expect("digest").len(), 64);

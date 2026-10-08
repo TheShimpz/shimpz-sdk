@@ -221,7 +221,7 @@ def test_verifier_inputs_are_a_read_only_copy() -> None:
 
 def test_native_contract_generation_matches_every_action_effect_vector() -> None:
     summary = json.dumps(
-        [{"id": hashlib.sha256(SUMMARY.encode()).hexdigest(), "msgid": SUMMARY, "max_length": 160, "params": []}]
+        [{"id": hashlib.sha256(SUMMARY.encode()).hexdigest(), "msgid": SUMMARY, "max_length": 80, "params": []}]
     )
     for case in json.loads(VECTORS.read_bytes())["cases"]:
         try:

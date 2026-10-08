@@ -10,7 +10,7 @@ const MAX_TEMPLATE_CHARACTERS: usize = 500;
 const MAX_CATALOG_BYTES: usize = 131_072;
 const MAX_CATALOG_NODES: usize = 4096;
 const FIELD_BOUNDS: [u16; 4] = [80, 120, 160, 500];
-const SUMMARY_BOUND: u16 = 160;
+const SUMMARY_BOUND: u16 = 80;
 
 /// One English catalog message referenced by Assistant-authored copy.
 ///

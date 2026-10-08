@@ -27,7 +27,7 @@ pub(crate) fn validate_manifest(manifest: &AssistantManifest) -> Result<(), Mani
         "version must be a stable SemVer",
     )?;
     validate_line(&manifest.shimpz.name, 80, "name")?;
-    validate_line(&manifest.shimpz.summary, 160, "summary")?;
+    validate_line(&manifest.shimpz.summary, 80, "summary")?;
     validate_genesis(&manifest.shimpz.genesis)?;
     validate_creators(&manifest.shimpz.creators)?;
     validate_github(&manifest.shimpz.github)?;

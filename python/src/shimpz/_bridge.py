@@ -30,6 +30,7 @@ _IDENTIFIER = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*")
 _MAX_IDENTIFIER = 64
 _MAX_INTEGRATIONS = 4
 _MAX_INTEGRATION_TOKEN = 16384
+_MAX_STORED_INPUTS = 8
 _MAX_STORED_INPUT = 1024
 
 
@@ -146,7 +147,7 @@ def _request(source: TextIO) -> dict[str, Any]:
         and valid_operation_id(payload["operation_id"])
         and isinstance(payload["input"], dict)
         and _valid_secrets(payload["integrations"], _MAX_INTEGRATIONS, _MAX_INTEGRATION_TOKEN)
-        and _valid_secrets(payload["stored_inputs"], 1, _MAX_STORED_INPUT)
+        and _valid_secrets(payload["stored_inputs"], _MAX_STORED_INPUTS, _MAX_STORED_INPUT)
         and files_shape_error(payload["files"]) is None
         and (
             "responses" not in payload

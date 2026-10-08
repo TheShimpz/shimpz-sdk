@@ -71,7 +71,7 @@ fn build(actions: Value) -> Result<AssistantContract, String> {
     let messages: Vec<Message> = serde_json::from_value(json!([{
         "id": format!("{:x}", Sha256::digest(summary)),
         "msgid": summary,
-        "max_length": 160,
+        "max_length": 80,
         "params": []
     }]))
     .expect("summary catalog");

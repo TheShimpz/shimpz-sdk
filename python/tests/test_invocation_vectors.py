@@ -78,7 +78,7 @@ def test_an_invocation_without_a_well_formed_files_object_is_refused(tmp_path: P
         ("integrations", {"a" * 65: "token"}),
         ("stored_inputs", {"whatsapp-token": "t" * 1025}),
         ("stored_inputs", {"whatsapp_token": "token"}),
-        ("stored_inputs", {"first": "token", "second": "token"}),
+        ("stored_inputs", {f"slot-{index}": "token" for index in range(9)}),
     ],
 )
 def test_an_integration_or_stored_input_outside_the_schema_is_refused(member: str, value: object) -> None:
@@ -92,7 +92,7 @@ def test_integration_and_stored_input_bounds_are_inclusive() -> None:
     frame = {
         "input": {},
         "integrations": {f"provider-{index}": "t" * 16384 for index in range(4)},
-        "stored_inputs": {"whatsapp-token": "t" * 1024},
+        "stored_inputs": {f"slot-{index}": "t" * 1024 for index in range(8)},
         "files": {},
         "operation_id": OPERATION_ID,
     }

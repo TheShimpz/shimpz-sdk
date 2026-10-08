@@ -64,7 +64,7 @@ def test_extracts_request_copy_with_field_bounds_and_the_summary(tmp_path: Path)
     assert messages[SUMMARY] == {
         "id": hashlib.sha256(SUMMARY.encode()).hexdigest(),
         "msgid": SUMMARY,
-        "max_length": 160,
+        "max_length": 80,
         "params": [],
     }
     ids = [message["id"] for message in messages.values()]

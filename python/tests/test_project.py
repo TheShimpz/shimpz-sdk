@@ -254,7 +254,7 @@ def test_contract_carries_the_statically_extracted_catalog(tmp_path: Path) -> No
     assert {message["msgid"]: message["max_length"] for message in messages} == {
         "Create {zone}": 80,
         "Create the DNS record.": 500,
-        "Manage DNS records.": 160,
+        "Manage DNS records.": 80,
     }
 
 
