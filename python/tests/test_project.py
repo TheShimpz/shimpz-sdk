@@ -201,6 +201,14 @@ header = "X-Api-Key"
 """
 
 
+def test_refuses_a_stored_input_without_its_help_link(tmp_path: Path) -> None:
+    root = create_project(tmp_path / "assistant")
+    (root / "shimpz.toml").write_text(f"{MANIFEST}{STORED_INPUT}", encoding="utf-8")
+
+    with pytest.raises(ValueError, match=r"shimpz\.toml is invalid"):
+        AssistantProject.load(root)
+
+
 def test_admits_a_canonical_stored_input_key_page(tmp_path: Path) -> None:
     root = create_project(tmp_path / "assistant")
     manifest = f'{MANIFEST}{STORED_INPUT}help_url = "https://dash.cloudflare.com/profile/api-tokens"\n'

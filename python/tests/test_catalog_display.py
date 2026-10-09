@@ -24,7 +24,8 @@ def catalog(tmp_path: Path, copy: DisplayCopy, *descriptions: str, body: str = "
         files.append(path)
     messages = load_catalog(tmp_path, files, copy).messages
     labels = [label for _, label in copy.labels]
-    assert display_error(messages, display_uses(copy.description, descriptions, labels)) is None
+    help_texts = [help_text for _, help_text in copy.help_texts]
+    assert display_error(messages, display_uses(copy.description, descriptions, labels, help_texts)) is None
     return {message["msgid"]: message for message in messages}
 
 
@@ -49,16 +50,17 @@ def test_catalogs_the_description_each_action_description_and_each_label(tmp_pat
     }
 
 
-def test_a_stored_input_description_stays_outside_the_catalog(tmp_path: Path) -> None:
+def test_a_stored_input_help_text_joins_the_catalog_within_its_paragraph_bound(tmp_path: Path) -> None:
+    help_text = "Create an API token in the provider dashboard and copy it."
     manifest = tomllib.loads(
         f'[shimpz]\nsummary = "{SUMMARY}"\ndescription = "{DESCRIPTION}"\n\n'
         '[stored_inputs.api-token]\nkind = "password"\nlabel = "API token"\n'
-        'description = "Token used to call the provider."\n'
+        f'description = "{help_text}"\nhelp_url = "https://dashboard.example.com/api-keys"\n'
     )
     copy = DisplayCopy.from_manifest(manifest)
 
-    assert copy == DisplayCopy(SUMMARY, DESCRIPTION, (("api-token", "API token"),))
-    assert "Token used to call the provider." not in catalog(tmp_path, copy, "List your DNS zones.")
+    assert copy == DisplayCopy(SUMMARY, DESCRIPTION, (("api-token", "API token"),), (("api-token", help_text),))
+    assert catalog(tmp_path, copy, "List your DNS zones.")[help_text]["max_length"] == 500
 
 
 @pytest.mark.parametrize(

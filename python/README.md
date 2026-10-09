@@ -131,10 +131,10 @@ summary = text(
   directly as one of those arguments takes its bound; anywhere else it needs a literal `max_length=` of 80, 120,
   160, or 500, and it can then be used only in fields at least that large.
 - The displayed static copy joins the catalog as parameterless messages: the manifest `summary` within 80
-  characters, the manifest `description` within 500, and each Action `description` and Stored Input `label` within
-  120, so every translation fits while the English stays within 80, 400, and 80. That copy therefore has no braces
-  and is NFC. One template used in several places is one message with the smallest bound of all its uses. A Stored
-  Input `description` is not displayed and stays outside the catalog.
+  characters, the manifest `description` and each Stored Input `description` within 500, and each Action
+  `description` and Stored Input `label` within 120, so every translation fits while the English stays within 80,
+  400, and 80. That copy therefore has no braces and is NFC. One template used in several places is one message with
+  the smallest bound of all its uses.
 
 The generated contract carries the catalog, and each request carries `{"message": id, "params": {...}}`
 references whose fingerprint never depends on the display language. `shimpz assistant run` renders references
@@ -192,25 +192,29 @@ async def run(*, ctx: Context) -> Campaigns:
 Reject only the value the provider refused, for example the token on an invalid-token error and the secret on an
 invalid signature.
 
-Each Stored Input declares where Team places it: one `host` from `allowed_hosts`, exactly one `header` or `query`
-field, an optional header `scheme` such as `Bearer`, and an optional `hmac` naming another Stored Input of the same
-host, which places the lowercase hexadecimal HMAC-SHA256 keyed by this value over that one (Meta's `appsecret_proof`).
-It may also name the page where a person creates the value:
+Every Stored Input declaration in `shimpz.toml` tells a person what the secret is, how to get it, and where, and
+where Team places it: one `host` from `allowed_hosts`, exactly one `header` or `query` field, an optional header
+`scheme` such as `Bearer`, and an optional `hmac` naming another Stored Input of the same host, which places the
+lowercase hexadecimal HMAC-SHA256 keyed by this value over that one (Meta's `appsecret_proof`):
 
 ```toml
 [stored_inputs.whatsapp-token]
 kind = "password"
-label = "WhatsApp token"
-description = "Token used to call the WhatsApp API."
-help_url = "https://business.facebook.com/settings/system-users"
+label = "WhatsApp access token"
+description = "A key that lets this Assistant send WhatsApp messages for your business. In Meta Business settings, open Users > System users, add a system user, and assign it your app and your WhatsApp account. Then choose Generate token, pick your app, tick whatsapp_business_messaging and whatsapp_business_management, and copy the token."
+help_url = "https://developers.facebook.com/documentation/business-messaging/whatsapp/access-tokens"
 host = "graph.facebook.com"
 header = "Authorization"
 scheme = "Bearer"
 ```
 
-`help_url` is optional. It must be one canonical public `https` URL of at most 2,048 characters with a path and an
-optional query, and no port, credentials, fragment, or dot segment, written exactly as a browser prints it. Team
-shows it as the link to create the key when it asks for the missing value.
+`description` is the help text: one plain-language line of 1 to 400 characters for someone who has never made such a
+key, saying what it is and the steps to get it. It is translated into the person's interface language like the other
+displayed copy. `help_url` is required: the closest official page where the person creates or finds the value, or the
+provider's documentation when creating it takes several steps. It must be one canonical public `https` URL of at most
+2,048 characters with a path and an optional query, and no port, credentials, fragment, or dot segment, written exactly
+as a browser prints it. Wherever the value is asked for, Team shows the help text followed by one "How to get it" link
+to that page, opened in a new tab.
 
 ## Effects and verification
 

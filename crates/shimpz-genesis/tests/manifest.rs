@@ -28,6 +28,7 @@ scopes = ["dns.read", "offline_access"]
 kind = "password"
 label = "API token"
 description = "Token used to call the provider."
+help_url = "https://dash.cloudflare.com/profile/api-tokens"
 host = "api.cloudflare.com"
 header = "X-Api-Key"
 "#;
@@ -209,18 +210,21 @@ fn rejects_invalid_stored_input_intent() {
 }
 
 #[test]
-fn exposes_an_optional_canonical_stored_input_key_page() {
+fn requires_a_canonical_stored_input_help_link_and_bounded_help_text() {
     let manifest = AssistantManifest::parse(VALID).expect("valid manifest");
-    assert_eq!(manifest.stored_inputs()["api-token"].help_url(), None);
-    let source = VALID.replace(
-        "description = \"Token used to call the provider.\"",
-        "description = \"Token used to call the provider.\"\nhelp_url = \"https://dash.cloudflare.com/profile/api-tokens\"",
-    );
-    let manifest = AssistantManifest::parse(&source).expect("valid key page");
     assert_eq!(
         manifest.stored_inputs()["api-token"].help_url(),
-        Some("https://dash.cloudflare.com/profile/api-tokens")
+        "https://dash.cloudflare.com/profile/api-tokens"
     );
+    let unlinked = VALID.replace(
+        "help_url = \"https://dash.cloudflare.com/profile/api-tokens\"\n",
+        "",
+    );
+    assert!(AssistantManifest::parse(&unlinked).is_err());
+    let at_bound = VALID.replace("Token used to call the provider.", &"h".repeat(400));
+    assert!(AssistantManifest::parse(&at_bound).is_ok());
+    let over_bound = VALID.replace("Token used to call the provider.", &"h".repeat(401));
+    assert!(AssistantManifest::parse(&over_bound).is_err());
     for invalid in [
         "http://dash.cloudflare.com/profile",
         "https://dash.cloudflare.com",
@@ -228,12 +232,7 @@ fn exposes_an_optional_canonical_stored_input_key_page() {
         "https://dash.cloudflare.com:8443/profile",
         "https://keys.internal/profile",
     ] {
-        let source = VALID.replace(
-            "description = \"Token used to call the provider.\"",
-            &format!(
-                "description = \"Token used to call the provider.\"\nhelp_url = \"{invalid}\""
-            ),
-        );
+        let source = VALID.replace("https://dash.cloudflare.com/profile/api-tokens", invalid);
         let error = AssistantManifest::parse(&source).expect_err("invalid key page");
         assert!(!error.to_string().contains(invalid), "{invalid}");
     }

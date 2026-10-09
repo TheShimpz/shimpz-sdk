@@ -193,12 +193,9 @@ fn validate_stored_inputs(manifest: &AssistantManifest) -> Result<(), ManifestEr
             "stored input kind is invalid",
         )?;
         validate_line(&stored_input.label, 80, "stored input label")?;
-        validate_line(&stored_input.description, 500, "stored input description")?;
+        validate_line(&stored_input.description, 400, "stored input description")?;
         require(
-            stored_input
-                .help_url
-                .as_deref()
-                .is_none_or(crate::help_url::valid_help_url),
+            crate::help_url::valid_help_url(&stored_input.help_url),
             "stored input help_url is invalid",
         )?;
     }

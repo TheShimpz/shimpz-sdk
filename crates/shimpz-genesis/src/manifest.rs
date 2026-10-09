@@ -31,11 +31,10 @@ pub struct StoredInputIntent {
     pub(crate) kind: String,
     /// Public label shown when the value is missing.
     pub(crate) label: String,
-    /// Public explanation shown when the value is missing.
+    /// Plain-language help text shown wherever the value is asked for: what it is and how to get it.
     pub(crate) description: String,
-    /// Optional canonical public `https` page where a person creates the value.
-    #[serde(default)]
-    pub(crate) help_url: Option<String>,
+    /// Canonical public `https` page where a person creates or finds the value, or the documentation explaining how.
+    pub(crate) help_url: String,
     /// The one allowed host Team sends the value to (ADR-0106).
     pub(crate) host: String,
     /// The header field Team places the value in.
@@ -65,16 +64,16 @@ impl StoredInputIntent {
         &self.label
     }
 
-    /// Return the public input description.
+    /// Return the help text: what the value is and how a person gets it.
     #[must_use]
     pub fn description(&self) -> &str {
         &self.description
     }
 
-    /// Return the optional page where a person creates the value.
+    /// Return the page where a person creates or finds the value, or the documentation that explains how.
     #[must_use]
-    pub fn help_url(&self) -> Option<&str> {
-        self.help_url.as_deref()
+    pub fn help_url(&self) -> &str {
+        &self.help_url
     }
 
     /// Return the one host that receives the value.

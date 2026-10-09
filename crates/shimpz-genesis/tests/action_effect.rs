@@ -28,6 +28,7 @@ allowed_hosts = ["api.example.com"]
 kind = "password"
 label = "API key"
 description = "Key used to read DNS records."
+help_url = "https://dashboard.example.com/api-keys"
 host = "api.example.com"
 header = "X-Api-Key"
 "#;

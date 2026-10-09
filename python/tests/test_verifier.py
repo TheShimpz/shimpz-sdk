@@ -33,6 +33,7 @@ allowed_hosts = ["api.example.com"]
 kind = "password"
 label = "API key"
 description = "Key used to read DNS records."
+help_url = "https://dashboard.example.com/api-keys"
 host = "api.example.com"
 header = "X-Api-Key"
 """
@@ -225,8 +226,13 @@ def test_verifier_inputs_are_a_read_only_copy() -> None:
 
 def test_native_contract_generation_matches_every_action_effect_vector() -> None:
     for case in json.loads(VECTORS.read_bytes())["cases"]:
-        # The summary, the description, the Stored Input label, and each Action description of the vector.
-        displayed = {SUMMARY: 80, "Runs only the reviewed Actions of this Assistant.": 500, "API key": 120}
+        # The summary, the description, the Stored Input label and help text, and each Action description of the vector.
+        displayed = {
+            SUMMARY: 80,
+            "Runs only the reviewed Actions of this Assistant.": 500,
+            "API key": 120,
+            "Key used to read DNS records.": 500,
+        }
         described = [action.get("description") for action in case["actions"] if isinstance(action, dict)]
         displayed |= {text: 120 for text in described if isinstance(text, str) and text != SUMMARY}
         messages = sorted(

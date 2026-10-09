@@ -9,15 +9,26 @@ use shimpz_genesis::{ActionContract, AssistantContract, AssistantManifest, Messa
 
 const CATALOG_VECTORS: &str = include_str!("../protocol/assistant/v1/vectors/catalog.json");
 const SUMMARY: &str = "Publish DNS changes.";
-const REFUSED: &str = "Message catalog must declare the description, each Action description, and each Stored Input label without parameters";
+const HELP: &str = "Create an API token in the Cloudflare dashboard and copy it.";
+const REFUSED: &str = "Message catalog must declare the description, each Action description, and each Stored Input label and help text without parameters";
 
 fn manifest(description: &str, labels: &[&str]) -> AssistantManifest {
+    manifest_with_help(description, labels, &[HELP])
+}
+
+/// One manifest whose Stored Inputs pair each label with a help text; the last help text serves any further label.
+fn manifest_with_help(
+    description: &str,
+    labels: &[&str],
+    help_texts: &[&str],
+) -> AssistantManifest {
     let stored_inputs = labels
         .iter()
         .enumerate()
         .map(|(index, label)| {
+            let help = help_texts[index.min(help_texts.len() - 1)];
             format!(
-                "\n[stored_inputs.key-{index}]\nkind = \"password\"\nlabel = \"{label}\"\ndescription = \"Key used to call the provider.\"\nhost = \"api.example.com\"\nheader = \"X-Key-{index}\"\n"
+                "\n[stored_inputs.key-{index}]\nkind = \"password\"\nlabel = \"{label}\"\ndescription = \"{help}\"\nhelp_url = \"https://dash.cloudflare.com/profile/api-tokens\"\nhost = \"api.example.com\"\nheader = \"X-Key-{index}\"\n"
             )
         })
         .collect::<Vec<_>>()
@@ -98,8 +109,14 @@ fn matches_every_reference_display_case() {
         };
         let mut messages = case["messages"].as_array().expect("messages").clone();
         messages.push(message(SUMMARY, 80));
+        let help_texts = texts("help_texts");
+        let helped = if help_texts.is_empty() {
+            vec![HELP]
+        } else {
+            help_texts
+        };
         let outcome = build(
-            &manifest(description, &texts("labels")),
+            &manifest_with_help(description, &texts("labels"), &helped),
             &texts("action_descriptions"),
             messages,
         );
@@ -116,7 +133,8 @@ fn admits_one_message_for_text_shared_by_the_summary_a_label_and_an_action_descr
     let manifest = manifest("Publishes reviewed DNS changes to your zones.", &[SUMMARY]);
     let descriptions = [SUMMARY, "List your DNS zones."];
     let catalog = common::display_messages(&manifest, &descriptions);
-    assert_eq!(catalog.len(), 3);
+    // The shared text, the description, the Action description, and the Stored Input help text.
+    assert_eq!(catalog.len(), 4);
     let shared = catalog.iter().find(|item| item["msgid"] == SUMMARY);
     assert_eq!(shared.expect("shared message")["max_length"], 80);
     build(&manifest, &descriptions, catalog).expect("shared message within every bound");
@@ -135,6 +153,7 @@ fn refuses_a_label_message_beyond_120_characters_and_any_missing_display_text() 
         "Publishes reviewed DNS changes to your zones.",
         "List your DNS zones.",
         "API token",
+        HELP,
     ] {
         let partial = complete
             .iter()

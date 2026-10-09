@@ -27,18 +27,25 @@ Message = dict[str, object]
 
 @dataclass(frozen=True, slots=True)
 class DisplayCopy:
-    """The manifest's displayed static copy: the summary, the description, and each Stored Input label by id."""
+    """The manifest's displayed static copy: the summary, the description, and each Stored Input label and help text.
+
+    ``labels`` and ``help_texts`` pair each Stored Input id with its label and with its help text (its
+    ``description``: what the secret is and how to get it), sorted by id.
+    """
 
     summary: str
     description: str
     labels: tuple[tuple[str, str], ...] = ()
+    help_texts: tuple[tuple[str, str], ...] = ()
 
     @classmethod
     def from_manifest(cls, manifest: Mapping[str, Any]) -> DisplayCopy:
         """Read the displayed copy of an already validated ``shimpz.toml``."""
         shimpz, stored = manifest["shimpz"], manifest.get("stored_inputs", {})
-        labels = tuple(sorted((stored_id, declaration["label"]) for stored_id, declaration in stored.items()))
-        return cls(shimpz["summary"], shimpz["description"], labels)
+        declared = sorted(stored.items())
+        labels = tuple((stored_id, declaration["label"]) for stored_id, declaration in declared)
+        help_texts = tuple((stored_id, declaration["description"]) for stored_id, declaration in declared)
+        return cls(shimpz["summary"], shimpz["description"], labels, help_texts)
 
     def uses(self) -> tuple[MessageUse, ...]:
         """Return each displayed manifest text as a parameterless use within its catalog bound."""
@@ -48,6 +55,10 @@ class DisplayCopy:
             *(
                 MessageUse(label, (), LINE_BOUND, f"shimpz.toml stored_inputs.{stored_id}.label")
                 for stored_id, label in self.labels
+            ),
+            *(
+                MessageUse(help_text, (), DESCRIPTION_BOUND, f"shimpz.toml stored_inputs.{stored_id}.description")
+                for stored_id, help_text in self.help_texts
             ),
         )
 
@@ -91,7 +102,12 @@ def build_catalog(uses: Sequence[MessageUse], actions: Sequence[MessageUse], cop
         (_entry(msgid, use.params, bounds[msgid]) for msgid, use in declarations.items()),
         key=lambda message: str(message["id"]),
     )
-    displayed = display_uses(copy.description, [use.msgid for use in actions], [label for _, label in copy.labels])
+    displayed = display_uses(
+        copy.description,
+        [use.msgid for use in actions],
+        [label for _, label in copy.labels],
+        [help_text for _, help_text in copy.help_texts],
+    )
     error = catalog_error(messages, copy.summary) or display_error(messages, displayed)
     if error is not None:
         raise ExtractionError(f"message catalog is invalid: {error}")

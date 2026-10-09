@@ -12,6 +12,12 @@ use shimpz_genesis::AssistantManifest;
 pub fn display_messages(manifest: &AssistantManifest, action_descriptions: &[&str]) -> Vec<Value> {
     let uses = [(manifest.summary(), 80_u16), (manifest.description(), 500)]
         .into_iter()
+        .chain(
+            manifest
+                .stored_inputs()
+                .values()
+                .map(|stored_input| (stored_input.description(), 500)),
+        )
         .chain(action_descriptions.iter().map(|text| (*text, 120)))
         .chain(
             manifest

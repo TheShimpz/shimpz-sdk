@@ -121,7 +121,14 @@ pub(crate) fn validate_messages(
             "Message catalog must declare the summary without parameters",
         ));
     }
-    let displayed = std::iter::once((manifest.description(), DESCRIPTION_BOUND))
+    let paragraphs = std::iter::once(manifest.description()).chain(
+        manifest
+            .stored_inputs()
+            .values()
+            .map(crate::StoredInputIntent::description),
+    );
+    let displayed = paragraphs
+        .map(|text| (text, DESCRIPTION_BOUND))
         .chain(
             actions
                 .iter()
@@ -136,7 +143,7 @@ pub(crate) fn validate_messages(
     for (text, bound) in displayed {
         if !declares(messages, text, bound) {
             return Err(ContractError::new(
-                "Message catalog must declare the description, each Action description, and each Stored Input label without parameters",
+                "Message catalog must declare the description, each Action description, and each Stored Input label and help text without parameters",
             ));
         }
     }
