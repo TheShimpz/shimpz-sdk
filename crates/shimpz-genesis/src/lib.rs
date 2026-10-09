@@ -8,6 +8,7 @@ mod error;
 mod help_url;
 mod idempotency;
 mod input_file;
+mod links;
 mod manifest;
 mod pattern;
 mod pattern_bound;

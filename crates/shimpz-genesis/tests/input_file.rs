@@ -13,6 +13,7 @@ id = "documents"
 version = "0.1.0"
 name = "Documents"
 summary = "Upload reviewed documents."
+description = "Runs only the reviewed Actions of this Assistant."
 creators = ["@roxygens"]
 github = "https://github.com/TheShimpz/documents"
 genesis = "Upload documents only after approval."
@@ -38,6 +39,8 @@ struct Case {
 #[serde(deny_unknown_fields)]
 struct ActionInput {
     id: String,
+    #[serde(rename = "description")]
+    _description: String,
     integrations: Vec<String>,
     stored_inputs: Vec<String>,
     input_files: Vec<String>,

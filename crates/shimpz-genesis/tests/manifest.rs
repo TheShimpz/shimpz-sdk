@@ -11,6 +11,7 @@ id = "shimpz-cloudflare"
 version = "0.1.0"
 name = "Shimpz Cloudflare"
 summary = "Manage Cloudflare DNS records."
+description = "Runs only the reviewed Actions of this Assistant."
 creators = ["@roxygens"]
 github = "https://github.com/TheShimpz/shimpz-cloudflare"
 genesis = """

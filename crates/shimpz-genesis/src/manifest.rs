@@ -4,6 +4,7 @@ use semver::Version;
 use serde::Deserialize;
 
 use crate::ManifestError;
+use crate::links::CreatorLinks;
 use crate::validation::validate_manifest;
 
 /// One controller-owned Integration capability requested by an Assistant.
@@ -103,10 +104,15 @@ pub(crate) struct ShimpzManifest {
     pub(crate) name: String,
     /// One-line Store summary.
     pub(crate) summary: String,
+    /// Plain-language paragraph shown under the summary on the Assistant's page.
+    pub(crate) description: String,
     /// Account-owned Creator handles.
     pub(crate) creators: Vec<String>,
     /// Canonical public source repository.
     pub(crate) github: String,
+    /// Optional Creator-declared public pages, separate from `github`.
+    #[serde(default)]
+    pub(crate) links: Option<CreatorLinks>,
     /// Markdown instructions that establish the Assistant's purpose.
     pub(crate) genesis: String,
 }
@@ -154,6 +160,22 @@ impl AssistantManifest {
     #[must_use]
     pub fn summary(&self) -> &str {
         &self.shimpz.summary
+    }
+
+    /// Return the Assistant description paragraph, which joins the message catalog.
+    #[must_use]
+    pub fn description(&self) -> &str {
+        &self.shimpz.description
+    }
+
+    /// Return the Creator's declared public pages as `(kind, url)` pairs in canonical display order: `site`,
+    /// `github`, `x`, `youtube`, `linkedin`, `instagram`. The pages are unverified presentation.
+    #[must_use]
+    pub fn links(&self) -> Vec<(&'static str, &str)> {
+        self.shimpz
+            .links
+            .as_ref()
+            .map_or_else(Vec::new, CreatorLinks::entries)
     }
 
     /// Return Integration intents keyed by provider id.

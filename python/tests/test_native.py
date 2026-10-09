@@ -16,6 +16,7 @@ id = "example"
 version = "0.1.0"
 name = "Example"
 summary = "Example Assistant."
+description = "Runs only the reviewed Actions of this Assistant."
 creators = ["@roxygens"]
 github = "https://github.com/TheShimpz/example"
 genesis = "Handle examples safely."
@@ -48,6 +49,22 @@ def test_validates_manifest_through_genesis() -> None:
 
     with pytest.raises(ValueError, match="unsupported Assistant spec"):
         _native.validate_manifest(MANIFEST.replace("spec = 1", "spec = 4"))
+
+
+def test_validates_the_assistant_page_copy_through_genesis() -> None:
+    description = 'description = "Runs only the reviewed Actions of this Assistant."'
+    _native.validate_manifest(MANIFEST.replace(description, f'description = "{"\U0001f600" * 400}"'))
+    links = '[shimpz.links]\nsite = "https://example.org/"\nyoutube = "https://www.youtube.com/@example"\n\n[network]'
+    _native.validate_manifest(MANIFEST.replace("[network]", links))
+
+    with pytest.raises(ValueError, match=r"shimpz\.toml is invalid"):
+        _native.validate_manifest(MANIFEST.replace(description + "\n", ""))
+    with pytest.raises(ValueError, match="description is invalid"):
+        _native.validate_manifest(MANIFEST.replace(description, f'description = "{"a" * 401}"'))
+    with pytest.raises(ValueError, match=r"links\.youtube is invalid"):
+        _native.validate_manifest(
+            MANIFEST.replace("[network]", links.replace("www.youtube.com", "youtube.com.evil.org"))
+        )
 
 
 def test_builds_contract_through_genesis() -> None:

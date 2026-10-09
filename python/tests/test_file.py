@@ -27,6 +27,7 @@ id = "documents"
 version = "0.1.0"
 name = "Documents"
 summary = "Store reviewed documents."
+description = "Runs only the reviewed Actions of this Assistant."
 creators = ["@roxygens"]
 github = "https://github.com/TheShimpz/documents"
 genesis = "Store documents only after approval."

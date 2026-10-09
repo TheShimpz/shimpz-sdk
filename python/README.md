@@ -43,6 +43,30 @@ async def run(zone: str, *, ctx: Context) -> CreatedDns:
     ...
 ```
 
+## Assistant page
+
+The manifest declares the copy shown on the Assistant's page:
+
+```toml
+[shimpz]
+# ...
+summary = "Manage Cloudflare DNS records."
+description = "Lists your zones and creates or deletes DNS records after you approve each change."
+
+[shimpz.links]
+site = "https://example.org/"
+github = "https://github.com/example"
+youtube = "https://www.youtube.com/@example"
+```
+
+- `description` is required: one paragraph of 1 to 400 characters (Unicode code points) under the same text rule as
+  the summary, trimmed and without control or format characters.
+- `[shimpz.links]` is optional and, when present, names at least one of the Creator's public pages, at most one each
+  of `site`, `github`, `x`, `youtube`, `linkedin`, and `instagram`. Each value is at most 256 characters of the
+  `help_url` grammar on its kind's own host: `github.com`, `x.com`, `youtube.com` or `www.youtube.com`,
+  `linkedin.com` or `www.linkedin.com`, `instagram.com` or `www.instagram.com`, and any public host for `site`.
+  Nothing verifies the links; they are separate from the repository named by `[shimpz].github`.
+
 ## Request copy
 
 Every user-visible request string is English catalog copy written with `shimpz.text`. Team shows it in the person's

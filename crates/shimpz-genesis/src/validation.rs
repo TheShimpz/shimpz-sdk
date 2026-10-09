@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use crate::links::validate_links;
 use crate::{AssistantManifest, ManifestError, SPEC_VERSION};
 
 const RESERVED_SUFFIXES: [&str; 11] = [
@@ -28,9 +29,15 @@ pub(crate) fn validate_manifest(manifest: &AssistantManifest) -> Result<(), Mani
     )?;
     validate_line(&manifest.shimpz.name, 80, "name")?;
     validate_line(&manifest.shimpz.summary, 80, "summary")?;
+    validate_line(&manifest.shimpz.description, 400, "description")?;
     validate_genesis(&manifest.shimpz.genesis)?;
     validate_creators(&manifest.shimpz.creators)?;
     validate_github(&manifest.shimpz.github)?;
+    manifest
+        .shimpz
+        .links
+        .as_ref()
+        .map_or(Ok(()), validate_links)?;
     validate_hosts(&manifest.network.allowed_hosts)?;
     validate_integrations(manifest)?;
     validate_stored_inputs(manifest)?;
@@ -53,13 +60,17 @@ fn validate_assistant_id(value: &str) -> Result<(), ManifestError> {
     require(valid, "Assistant id is invalid")
 }
 
+/// Validate one line of public text under the manifest schema's text pattern: trimmed, without C0 or C1 controls,
+/// zero-width, bidirectional, or other format controls, and at most `maximum` code points.
 fn validate_line(value: &str, maximum: usize, field: &str) -> Result<(), ManifestError> {
     let valid = !value.is_empty()
         && value.chars().count() <= maximum
         && value.trim() == value
         && !value.chars().any(|character| {
-            let codepoint = u32::from(character);
-            codepoint < 32 || codepoint == 127
+            matches!(
+                u32::from(character),
+                0..=0x1f | 0x7f..=0x9f | 0x200b..=0x200f | 0x202a..=0x202e | 0x2060..=0x206f | 0xfeff
+            )
         });
     require(valid, format!("{field} is invalid"))
 }

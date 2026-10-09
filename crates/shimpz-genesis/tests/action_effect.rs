@@ -13,6 +13,7 @@ id = "dns"
 version = "0.1.0"
 name = "DNS"
 summary = "Manage DNS records."
+description = "Runs only the reviewed Actions of this Assistant."
 creators = ["@roxygens"]
 github = "https://github.com/TheShimpz/dns"
 genesis = "Manage DNS safely."

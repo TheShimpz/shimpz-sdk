@@ -15,6 +15,7 @@ id = "dense"
 version = "0.1.0"
 name = "Dense"
 summary = "Exercise contract bounds."
+description = "Runs only the reviewed Actions of this Assistant."
 creators = ["@roxygens"]
 github = "https://github.com/TheShimpz/dense"
 genesis = "Exercise contract bounds."

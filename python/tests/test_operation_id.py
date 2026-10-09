@@ -19,6 +19,7 @@ id = "example"
 version = "0.1.0"
 name = "Example"
 summary = "Test an example."
+description = "Runs only the reviewed Actions of this Assistant."
 creators = ["@roxygens"]
 github = "https://github.com/TheShimpz/example"
 genesis = "Test examples safely."
