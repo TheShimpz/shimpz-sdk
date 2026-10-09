@@ -40,7 +40,7 @@ async def run(zone: str, *, ctx: Context) -> CreatedDns:
     else:
         description = text("Create a DNS-only record in {zone}.", zone=domain(zone, max_length=100), max_length=500)
     ctx.request_approval(title=text("Create the DNS record"), description=description)
-    token = ctx.integrations.cloudflare.access_token
+    response = await ctx.fetch("POST", f"https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records", body=record)
     ...
 ```
 
@@ -83,6 +83,18 @@ youtube = "https://www.youtube.com/@example"
   `help_url` grammar on its kind's own host: `github.com`, `x.com`, `youtube.com` or `www.youtube.com`,
   `linkedin.com` or `www.linkedin.com`, `instagram.com` or `www.instagram.com`, and any public host for `site`.
   Nothing verifies the links; they are separate from the repository named by `[shimpz].github`.
+
+## Provider calls
+
+An Action never holds a credential. It asks Team for each HTTPS call with `await ctx.fetch(method, url, headers=...,
+body=..., timeout_ms=...)`, and Team adds every credential the Action declares for that host: an Integration's
+OAuth bearer on its provider's API hosts, and each Stored Input in the header or query parameter its manifest
+declaration names. The host must be one of the manifest's `allowed_hosts`; Team refuses any other host, a header or
+query parameter it places itself, and a response that would echo a credential back. `fetch` returns a `Response`
+with `status`, `headers`, `body` (bytes), `header(name)`, `text()`, and `json()`, follows no redirect, and raises
+`FetchError` with `code` `refused`, `credential-missing`, `unavailable`, or `failed` when Team makes no usable call.
+A request body is at most 256 KiB, a response at most 4 MiB, and an Action makes at most sixteen calls per
+invocation. The first call closes the human-request phase.
 
 ## Request copy
 
@@ -128,12 +140,10 @@ The generated contract carries the catalog, and each request carries `{"message"
 references whose fingerprint never depends on the display language. `shimpz assistant run` renders references
 through the English catalog.
 
-Attribute access (`ctx.integrations.cloudflare`) is a convenience for identifier-safe ids; for ids containing hyphens use subscript access, e.g. `ctx.integrations['cloudflare-api'].access_token`.
-
-Human requests are declared explicitly on `@action`. They must happen before the first Integration token is read. The runtime suspends and deterministically replays the Action after the Team supplies a response; code before a request must therefore be free of external side effects. Password input is for a third-party secret, is always the final human request, and cannot be returned as an Action result. An Action declares and issues at most one authorization request. `request_auth` accepts `password`, `totp`, or `passkey`; the successful ceremony authorizes the exact challenge and authentication material never enters the Action.
+Human requests are declared explicitly on `@action`. They must happen before the first provider call. The runtime suspends and deterministically replays the Action after the Team supplies a response; code before a request must therefore be free of external side effects. A password request always names a declared Stored Input. An Action declares and issues at most one authorization request, and Team admits its provider calls only after that request is answered. `request_auth` accepts `password`, `totp`, or `passkey`; the successful ceremony authorizes the exact challenge and authentication material never enters the Action.
 
 Token-only providers use a manifest-declared Stored Input rather than an OAuth Integration. Declare the exact slot
-and request it only when the Action needs it:
+and make sure Team holds it before the first call:
 
 ```python
 @action(
@@ -142,7 +152,7 @@ and request it only when the Action needs it:
     human_requests=["input:password"],
 )
 async def run(*, ctx: Context) -> CreatedDns:
-    token = ctx.request_input(
+    ctx.request_input(
         InputRequest(
             kind="password",
             title=text("WhatsApp token"),
@@ -155,13 +165,13 @@ async def run(*, ctx: Context) -> CreatedDns:
 ```
 
 Team asks just in time when the slot is empty, seals the answer as soon as the person submits it, and reuses it later
-without another prompt. If the provider explicitly rejects the value, call `ctx.reject_stored_input("whatsapp-token")`;
-this terminates the Action and lets Team clear only that exact slot. Stored Input values are not available as a
-Context mapping and must never be logged or returned.
+without another prompt. The request returns `None`: the value never enters the Action, and Team places it in each call
+to the declared host. If the provider explicitly rejects the value, call `ctx.reject_stored_input("whatsapp-token")`;
+this terminates the Action and lets Team clear only that exact slot.
 
 An Action may declare several of its manifest's Stored Inputs, up to all eight, and several Actions may share them;
-each Action receives only those it declares. Request every value it needs together with `ctx.request_stored_inputs`,
-which returns them in request order only once Team holds all of them, asking the person for each missing one in turn:
+each Action uses only those it declares. Request every one it needs together with `ctx.request_stored_inputs`, which
+returns only once Team holds all of them, asking the person for each missing one in turn:
 
 ```python
 @action(
@@ -170,7 +180,7 @@ which returns them in request order only once Team holds all of them, asking the
     human_requests=["input:password"],
 )
 async def run(*, ctx: Context) -> Campaigns:
-    token, secret = ctx.request_stored_inputs(
+    ctx.request_stored_inputs(
         InputRequest(kind="password", title=text("Meta access token"), description=text("..."),
                      label=text("Access token"), stored_input="meta-access-token"),
         InputRequest(kind="password", title=text("Meta app secret"), description=text("..."),
@@ -179,10 +189,13 @@ async def run(*, ctx: Context) -> Campaigns:
     ...
 ```
 
-No human request may follow, so an Action never uses one value before it holds every one. Reject only the value the
-provider refused, for example the token on an invalid-token error and the secret on an invalid signature.
+Reject only the value the provider refused, for example the token on an invalid-token error and the secret on an
+invalid signature.
 
-A Stored Input declaration in `shimpz.toml` may name the page where a person creates the value:
+Each Stored Input declares where Team places it: one `host` from `allowed_hosts`, exactly one `header` or `query`
+field, an optional header `scheme` such as `Bearer`, and an optional `hmac` naming another Stored Input of the same
+host, which places the lowercase hexadecimal HMAC-SHA256 keyed by this value over that one (Meta's `appsecret_proof`).
+It may also name the page where a person creates the value:
 
 ```toml
 [stored_inputs.whatsapp-token]
@@ -190,6 +203,9 @@ kind = "password"
 label = "WhatsApp token"
 description = "Token used to call the WhatsApp API."
 help_url = "https://business.facebook.com/settings/system-users"
+host = "graph.facebook.com"
+header = "Authorization"
+scheme = "Bearer"
 ```
 
 `help_url` is optional. It must be one canonical public `https` URL of at most 2,048 characters with a path and an
@@ -309,11 +325,10 @@ Raise an ordinary exception when an Action cannot finish; there is no error-code
 it into one failure frame that Team can show and reason about: the exception type, its message, and, for a provider
 error that carries an HTTP response (such as `httpx.HTTPStatusError` or `requests.HTTPError`, also through
 `raise ... from`), the provider host, HTTP status, and the beginning of a textual response body. Before bounding any
-of these strings, the SDK replaces every Integration token, Stored Input value, password response, and value
-registered with `ctx.register_secret(...)`, in any letter case and in their common percent, JSON, and base64
+of these strings, the SDK replaces every value registered with `ctx.register_secret(...)`, in any letter case and in their common percent, JSON, and base64
 encodings, plus text shaped like credentials, keys, tokens, or URL user information. A host that held a secret is
 dropped, and text longer than 64 Ki characters is withheld rather than partially checked. Register any
-secret the Action derives or acquires, such as a session token obtained with a Stored Input. A failure is never proof
+secret the Action derives or acquires, such as a session token a provider returns. A failure is never proof
 that nothing happened: a mutating Action's failure stays uncertain until its verifier settles it. What an Action prints,
 logs, or warns through Python's streams during the invocation is discarded and never reaches Team. Bytes written
 below those streams, such as native writes or a handler bound to the original stream at import time, still reach the

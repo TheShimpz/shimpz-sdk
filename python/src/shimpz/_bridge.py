@@ -23,15 +23,13 @@ from ._protocol.input_file import (
 from ._reference import render_request
 from ._runtime import ActionFailure, ActionInvocation, invoke_action
 from .context import valid_operation_id
+from .fetch import ProviderChannel
 
 _MAX_REQUEST_BYTES = MAX_INVOCATION_BYTES
-# The invocation schema's Integration and Stored Input bounds.
+# The invocation schema's Stored Input bounds.
 _IDENTIFIER = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*")
 _MAX_IDENTIFIER = 64
-_MAX_INTEGRATIONS = 4
-_MAX_INTEGRATION_TOKEN = 16384
 _MAX_STORED_INPUTS = 8
-_MAX_STORED_INPUT = 1024
 
 
 def main(arguments: list[str] | None = None) -> int:
@@ -62,6 +60,7 @@ def dispatch(arguments: list[str], source: TextIO) -> str:
 
 
 def _invoke(root: Path, action_id: str, source: TextIO) -> str:
+    """Run one invocation read as the first input line; each later line answers one provider call (ADR-0106)."""
     project = AssistantProject.load(root)
     payload = _request(source)
     try:
@@ -71,11 +70,11 @@ def _invoke(root: Path, action_id: str, source: TextIO) -> str:
                 action_id,
                 ActionInvocation(
                     inputs=payload["input"],
-                    integrations=payload["integrations"],
-                    stored_inputs=payload["stored_inputs"],
+                    stored_inputs=tuple(payload["stored_inputs"]),
                     operation_id=payload["operation_id"],
                     responses=tuple(payload.get("responses", ())),
                     files=payload["files"],
+                    channel=ProviderChannel(source, sys.stdout),
                 ),
             )
         )
@@ -118,8 +117,8 @@ def _binary(source: TextIO) -> BinaryIO:
     return buffer
 
 
-def _bounded_json(source: TextIO, limit: int = _MAX_REQUEST_BYTES) -> object:
-    raw = source.read(limit + 1)
+def _bounded_json(source: TextIO, limit: int = _MAX_REQUEST_BYTES, *, line: bool = False) -> object:
+    raw = source.readline(limit + 2).removesuffix("\n") if line else source.read(limit + 1)
     if not 0 < len(raw.encode()) <= limit:
         message = "private bridge request is invalid"
         raise ValueError(message)
@@ -136,18 +135,17 @@ def _bounded_json(source: TextIO, limit: int = _MAX_REQUEST_BYTES) -> object:
 
 
 def _request(source: TextIO) -> dict[str, Any]:
-    payload = _bounded_json(source, MAX_FILE_INVOCATION_BYTES)
+    payload = _bounded_json(source, MAX_FILE_INVOCATION_BYTES, line=True)
     valid = (
         isinstance(payload, dict)
         and set(payload)
         in (
-            {"input", "integrations", "stored_inputs", "files", "operation_id"},
-            {"input", "integrations", "stored_inputs", "files", "operation_id", "responses"},
+            {"input", "stored_inputs", "files", "operation_id"},
+            {"input", "stored_inputs", "files", "operation_id", "responses"},
         )
         and valid_operation_id(payload["operation_id"])
         and isinstance(payload["input"], dict)
-        and _valid_secrets(payload["integrations"], _MAX_INTEGRATIONS, _MAX_INTEGRATION_TOKEN)
-        and _valid_secrets(payload["stored_inputs"], _MAX_STORED_INPUTS, _MAX_STORED_INPUT)
+        and _valid_ids(payload["stored_inputs"])
         and files_shape_error(payload["files"]) is None
         and (
             "responses" not in payload
@@ -164,19 +162,16 @@ def _request(source: TextIO) -> dict[str, Any]:
     return payload
 
 
-def _valid_secrets(value: object, count: int, length: int) -> bool:
-    """An Integration or Stored Input map: at most ``count`` identifiers, each with 1 to ``length`` characters."""
+def _valid_ids(value: object) -> bool:
+    """The held Stored Inputs: at most eight distinct identifiers, never a value."""
     return (
-        isinstance(value, dict)
-        and len(value) <= count
+        isinstance(value, list)
+        and len(value) <= _MAX_STORED_INPUTS
         and all(
-            isinstance(key, str)
-            and len(key) <= _MAX_IDENTIFIER
-            and _IDENTIFIER.fullmatch(key) is not None
-            and isinstance(item, str)
-            and 1 <= len(item) <= length
-            for key, item in value.items()
+            isinstance(item, str) and len(item) <= _MAX_IDENTIFIER and _IDENTIFIER.fullmatch(item) is not None
+            for item in value
         )
+        and len(set(value)) == len(value)
     )
 
 

@@ -134,7 +134,7 @@ def _invoke(root: Path) -> _Result:
     stdout_path = root.parent / "stdout.txt"
     stderr_path = root.parent / "stderr.txt"
     stdin_path.write_text(
-        '{"input":{"name":"Ada"},"integrations":{},"stored_inputs":{},"files":{},"operation_id":"6f1c2b8e-3a4d-4c5e-9f60-718293a4b5c6"}',
+        '{"input":{"name":"Ada"},"stored_inputs":[],"files":{},"operation_id":"6f1c2b8e-3a4d-4c5e-9f60-718293a4b5c6"}',
         encoding="utf-8",
     )
     process = multiprocessing.get_context("spawn").Process(

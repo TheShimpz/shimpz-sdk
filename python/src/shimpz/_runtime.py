@@ -17,6 +17,7 @@ from ._files import bind_files
 from ._human import HumanRequestSuspension, StoredInputRejection
 from ._project import ActionDefinition, AssistantProject
 from .context import ActionDeclaration, Context
+from .fetch import ProviderChannel
 
 _MAX_VALUE_BYTES = 512 * 1_024
 
@@ -47,11 +48,11 @@ class ActionInvocation:
     """One private, bounded invocation passed to an Action process."""
 
     inputs: Mapping[str, object]
-    integrations: Mapping[str, str]
-    stored_inputs: Mapping[str, str]
+    stored_inputs: tuple[str, ...]
     operation_id: str
     responses: tuple[Mapping[str, object], ...] = ()
     files: Mapping[str, object] = field(default_factory=dict)
+    channel: ProviderChannel | None = None
 
 
 async def invoke_action(
@@ -63,12 +64,7 @@ async def invoke_action(
     definition = _find_action(project, action_id)
     if not isinstance(invocation, ActionInvocation):
         raise TypeError("Action invocation is invalid")
-    tokens = dict(invocation.integrations)
-    if set(tokens) != set(definition.integrations):
-        message = "Action integrations do not match its declaration"
-        raise ValueError(message)
-    stored_values = dict(invocation.stored_inputs)
-    if set(stored_values) - set(definition.stored_inputs):
+    if set(invocation.stored_inputs) - set(definition.stored_inputs):
         message = "Action Stored Inputs do not match its declaration"
         raise ValueError(message)
     input_value = dict(invocation.inputs)
@@ -79,11 +75,11 @@ async def invoke_action(
         messages=project.messages,
     )
     context = Context(
-        tokens,
         declaration,
         invocation.responses,
-        stored_inputs=stored_values,
+        stored_inputs=invocation.stored_inputs,
         operation_id=invocation.operation_id,
+        channel=invocation.channel,
     )
     files = _file_arguments(definition, input_value, invocation, context)
     arguments = {**input_value, **files}
@@ -102,23 +98,13 @@ async def invoke_action(
     failure = result if isinstance(result, BaseException) else None
     if failure is None:
         try:
-            context._finish(result)
+            context._finish()
             _validate_value(definition.output_schema, result, "Action result")
         except ValueError as error:
             failure = error
     if failure is not None:
-        raise ActionFailure(failure_envelope(failure, _secrets(invocation, context), withhold_text=bool(files))) from None
+        raise ActionFailure(failure_envelope(failure, context._secrets, withhold_text=bool(files))) from None
     return result
-
-
-def _secrets(invocation: ActionInvocation, context: Context) -> list[str]:
-    """Every secret this invocation received or the Action registered, for exact failure redaction."""
-    passwords = [
-        response["value"]
-        for response in invocation.responses
-        if response.get("kind") == "input:password" and isinstance(response.get("value"), str)
-    ]
-    return [*invocation.integrations.values(), *invocation.stored_inputs.values(), *passwords, *context._secrets]
 
 
 def _file_arguments(

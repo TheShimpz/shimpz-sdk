@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 
 from ._protocol.human_request import fingerprint, request_error
 
@@ -32,20 +32,19 @@ class HumanRequestRuntime:
         "_allowed",
         "_authorization_requested",
         "_authorized",
+        "_called",
         "_catalog",
         "_index",
         "_resolved_stored_inputs",
         "_responses",
-        "_secrets",
         "_stored_inputs",
-        "_token_observed",
     )
 
     def __init__(
         self,
         allowed: Sequence[str],
         responses: Sequence[Mapping[str, object]],
-        stored_inputs: Mapping[str, str] | None = None,
+        stored_inputs: Iterable[str] = (),
         catalog: Mapping[str, Mapping[str, object]] | None = None,
     ) -> None:
         if len(responses) > MAX_REQUESTS:
@@ -56,18 +55,17 @@ class HumanRequestRuntime:
         self._authorized = False
         self._responses = tuple(dict(item) for item in responses)
         self._index = 0
-        self._stored_inputs = dict(stored_inputs or {})
+        self._stored_inputs = frozenset(stored_inputs)
         self._resolved_stored_inputs: set[str] = set()
-        self._secrets: list[str] = []
-        self._token_observed = False
+        self._called = False
 
     def authorized(self) -> bool:
         """Return whether this execution matched its authorization request to the admitted response."""
         return self._authorized
 
-    def observe_token(self) -> None:
-        """Record the first access to an Integration bearer."""
-        self._token_observed = True
+    def observe_call(self) -> None:
+        """Record the first provider call, after which a replay could repeat it, so no human request may follow."""
+        self._called = True
 
     def resolve(self, kind: str, descriptor: dict[str, object]) -> object:
         """Return one matching admitted response or suspend with its canonical request."""
@@ -93,25 +91,18 @@ class HumanRequestRuntime:
         self._index += 1
         if kind == "approval" or kind.startswith("auth:"):
             self._authorized = True
-        if kind == "input:password":
-            self._observe_secret(value)
         return value
 
-    def resolve_stored_inputs(self, requests: Sequence[tuple[str, dict[str, object]]]) -> tuple[str, ...]:
-        """Return every requested Stored Input at once, or suspend for the first one Team does not hold yet.
+    def resolve_stored_inputs(self, requests: Sequence[tuple[str, dict[str, object]]]) -> None:
+        """Return once Team holds every requested Stored Input, or suspend for the first one it does not hold yet.
 
-        A Stored Input request is answered only by injection: Team seals the person's answer and the replay receives it
-        in the invocation, so no value is observed, and the request phase stays open, until every one is held.
+        Team seals the person's answer and the replay learns only that it holds the value, never the value (ADR-0106).
         """
         self._validate_request_phase("input:password")
         for stored_input, descriptor in requests:
             if stored_input not in self._stored_inputs:
                 self._suspend_for_stored_input(descriptor)
-        values = tuple(self._stored_inputs[stored_input] for stored_input, _descriptor in requests)
-        for value in values:
-            self._observe_secret(value)
         self._resolved_stored_inputs.update(stored_input for stored_input, _descriptor in requests)
-        return values
 
     def _suspend_for_stored_input(self, descriptor: dict[str, object]) -> None:
         if self._index >= MAX_REQUESTS:
@@ -134,22 +125,13 @@ class HumanRequestRuntime:
     def _validate_request_phase(self, kind: str) -> None:
         if kind not in self._allowed:
             raise ValueError("Action human request capability is undeclared")
-        if self._token_observed:
-            raise ValueError("Action cannot request human input after observing an Integration token")
-        if self._secrets:
-            raise ValueError("Action password input must be its final human request")
+        if self._called:
+            raise ValueError("Action cannot request human input after a provider call")
 
-    def _observe_secret(self, value: object) -> None:
-        if not isinstance(value, str):
-            raise ValueError("Action human input response is invalid")
-        self._secrets.append(value)
-
-    def finish(self, result: object) -> None:
-        """Reject an unused response or exact password echo in the Action result."""
+    def finish(self) -> None:
+        """Reject an unused response."""
         if self._index != len(self._responses):
             raise ValueError("Action human response transcript diverged")
-        if any(secret and _contains(result, secret) for secret in self._secrets):
-            raise ValueError("Action result exposes human password input")
 
 
 def _fingerprint(request: object) -> str:
@@ -216,12 +198,3 @@ def _validate_choices(descriptor: Mapping[str, object], value: object) -> None:
     ):
         raise ValueError("Action human choices response is invalid")
 
-
-def _contains(value: object, secret: str) -> bool:
-    if isinstance(value, str):
-        return secret in value
-    if isinstance(value, Mapping):
-        return any(_contains(key, secret) or _contains(item, secret) for key, item in value.items())
-    if isinstance(value, Sequence) and not isinstance(value, bytes):
-        return any(_contains(item, secret) for item in value)
-    return False

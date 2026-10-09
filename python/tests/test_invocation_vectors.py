@@ -49,7 +49,7 @@ def test_the_bridge_and_binding_admit_exactly_the_valid_file_invocation_vectors(
 
 def test_an_ordinary_invocation_with_empty_files_runs_the_action(tmp_path: Path) -> None:
     root = create_project(tmp_path / "assistant")
-    frame = {"input": {"name": "Ada"}, "integrations": {}, "stored_inputs": {}, "files": {}, "operation_id": OPERATION_ID}
+    frame = {"input": {"name": "Ada"}, "stored_inputs": [], "files": {}, "operation_id": OPERATION_ID}
 
     result = json.loads(dispatch(["invoke", str(root), "greet"], io.StringIO(json.dumps(frame))))
 
@@ -59,7 +59,7 @@ def test_an_ordinary_invocation_with_empty_files_runs_the_action(tmp_path: Path)
 @pytest.mark.parametrize("files", [None, [], "", {"": {}}, {"0123456789abcdef0123456789abcdef": None}])
 def test_an_invocation_without_a_well_formed_files_object_is_refused(tmp_path: Path, files: object) -> None:
     root = create_project(tmp_path / "assistant")
-    frame: dict[str, object] = {"input": {"name": "Ada"}, "integrations": {}, "stored_inputs": {}}
+    frame: dict[str, object] = {"input": {"name": "Ada"}, "stored_inputs": []}
     frame["operation_id"] = OPERATION_ID
     if files is not None:
         frame["files"] = files
@@ -69,32 +69,27 @@ def test_an_invocation_without_a_well_formed_files_object_is_refused(tmp_path: P
 
 
 @pytest.mark.parametrize(
-    ("member", "value"),
+    "value",
     [
-        ("integrations", {"cloudflare": "t" * 16385}),
-        ("integrations", {"cloudflare": ""}),
-        ("integrations", {f"provider-{index}": "token" for index in range(5)}),
-        ("integrations", {"Cloudflare": "token"}),
-        ("integrations", {"a" * 65: "token"}),
-        ("stored_inputs", {"whatsapp-token": "t" * 1025}),
-        ("stored_inputs", {"whatsapp_token": "token"}),
-        ("stored_inputs", {f"slot-{index}": "token" for index in range(9)}),
+        {"whatsapp-token": "token"},
+        ["whatsapp_token"],
+        ["whatsapp-token", "whatsapp-token"],
+        [f"slot-{index}" for index in range(9)],
     ],
 )
-def test_an_integration_or_stored_input_outside_the_schema_is_refused(member: str, value: object) -> None:
-    frame = {"input": {}, "integrations": {}, "stored_inputs": {}, "files": {}, "operation_id": OPERATION_ID}
-    frame[member] = value
+def test_held_stored_inputs_outside_the_schema_are_refused(value: object) -> None:
+    frame = {"input": {}, "stored_inputs": value, "files": {}, "operation_id": OPERATION_ID}
 
     assert _admitted(frame) is None
 
 
-def test_integration_and_stored_input_bounds_are_inclusive() -> None:
-    frame = {
-        "input": {},
-        "integrations": {f"provider-{index}": "t" * 16384 for index in range(4)},
-        "stored_inputs": {f"slot-{index}": "t" * 1024 for index in range(8)},
-        "files": {},
-        "operation_id": OPERATION_ID,
-    }
+def test_an_integration_member_is_refused() -> None:
+    frame = {"input": {}, "stored_inputs": [], "integrations": {}, "files": {}, "operation_id": OPERATION_ID}
+
+    assert _admitted(frame) is None
+
+
+def test_the_stored_input_bound_is_inclusive() -> None:
+    frame = {"input": {}, "stored_inputs": [f"slot-{index}" for index in range(8)], "files": {}, "operation_id": OPERATION_ID}
 
     assert _admitted(frame) is not None

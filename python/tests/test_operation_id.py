@@ -44,18 +44,18 @@ async def run(*, ctx: Context) -> Result:
 
 
 def test_context_exposes_the_assigned_operation_id() -> None:
-    assert Context({}, operation_id=OPERATION_ID).operation_id == OPERATION_ID
+    assert Context(operation_id=OPERATION_ID).operation_id == OPERATION_ID
 
 
 def test_context_outside_an_invocation_has_no_operation_id() -> None:
     with pytest.raises(RuntimeError, match="only during a Team invocation"):
-        _ = Context({}).operation_id
+        _ = Context().operation_id
 
 
 @pytest.mark.parametrize("value", [OPERATION_ID.upper(), OPERATION_ID.replace("-4", "-1", 1), "", 7])
 def test_context_refuses_a_non_canonical_operation_id(value: object) -> None:
     with pytest.raises(ValueError, match="operation_id is invalid"):
-        Context({}, operation_id=value)  # type: ignore[arg-type]
+        Context(operation_id=value)  # type: ignore[arg-type]
 
 
 def test_the_action_receives_the_invocation_operation_id(tmp_path: Path) -> None:
@@ -65,7 +65,7 @@ def test_the_action_receives_the_invocation_operation_id(tmp_path: Path) -> None
     (root / "shimpz.toml").write_text(MANIFEST, encoding="utf-8")
     (root / "pyproject.toml").write_text("[project]\nname = 'assistant'\n", encoding="utf-8")
     (root / "actions" / "echo.py").write_text(ACTION, encoding="utf-8")
-    request = {"input": {}, "integrations": {}, "stored_inputs": {}, "files": {}, "operation_id": OPERATION_ID}
+    request = {"input": {}, "stored_inputs": [], "files": {}, "operation_id": OPERATION_ID}
 
     response = json.loads(dispatch(["invoke", str(root), "echo"], io.StringIO(json.dumps(request))))
 

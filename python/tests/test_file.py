@@ -178,8 +178,7 @@ def record(content: dict[str, object], data: bytes = CONTENT) -> dict[str, objec
 def invocation(content: dict[str, object], responses: list[dict[str, object]] | None = None, **extra: object) -> str:
     value = {
         "input": {"document": FILE_ID, **extra},
-        "integrations": {},
-        "stored_inputs": {},
+        "stored_inputs": [],
         "files": {FILE_ID: record(content)},
         "operation_id": OPERATION_ID,
     }

@@ -33,6 +33,8 @@ allowed_hosts = ["api.example.com"]
 kind = "password"
 label = "API key"
 description = "Key used to read DNS records."
+host = "api.example.com"
+header = "X-Api-Key"
 """
 SUMMARY = "Manage DNS records."
 CREATE = """

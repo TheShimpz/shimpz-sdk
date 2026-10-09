@@ -196,6 +196,8 @@ STORED_INPUT = """
 kind = "password"
 label = "API key"
 description = "Key used to call the provider."
+host = "api.cloudflare.com"
+header = "X-Api-Key"
 """
 
 

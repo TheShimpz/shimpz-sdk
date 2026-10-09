@@ -43,7 +43,7 @@ def test_renders_every_copy_field_and_keeps_canonical_values() -> None:
         copies[2],
         options=(InputOption("safe", copies[3], copies[4]), InputOption("fast", copies[5])),
     )
-    context = Context({}, ActionDeclaration(["input:choice"], (), messages))
+    context = Context(ActionDeclaration(["input:choice"], (), messages))
     with pytest.raises(HumanRequestSuspension) as captured:
         context.request_input(request)
     frame = captured.value.request

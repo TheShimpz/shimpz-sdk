@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from types import MappingProxyType
 from typing import Literal
 
 from ._human import HumanRequestRuntime
 from ._reference import index_catalog
 from ._request import copy_descriptor, input_descriptor, valid_id
+from .fetch import Headers, ProviderChannel, Response, request_frame
 from .human import InputRequest
 from .message import Text
 
@@ -28,53 +28,6 @@ def valid_operation_id(value: object) -> bool:
     return isinstance(value, str) and _OPERATION_ID.fullmatch(value) is not None
 
 
-class OAuthIntegration:
-    """One invocation-scoped OAuth bearer token."""
-
-    __slots__ = ("__access_token", "__observe")
-
-    def __init__(self, access_token: str, observe: Callable[[], None]) -> None:
-        if not isinstance(access_token, str) or not access_token:
-            raise ValueError("OAuth access token is invalid")
-        self.__access_token = access_token
-        self.__observe = observe
-
-    @property
-    def access_token(self) -> str:
-        """Return the injected bearer token and close the human-request phase."""
-        self.__observe()
-        return self.__access_token
-
-    def __repr__(self) -> str:
-        return "OAuthIntegration(access_token=<redacted>)"
-
-
-class Integrations:
-    """Read-only OAuth integrations addressable by manifest id."""
-
-    __slots__ = ("__values",)
-
-    def __init__(self, tokens: Mapping[str, str], observe: Callable[[], None] | None = None) -> None:
-        observer = _ignore_observation if observe is None else observe
-        values = {key: OAuthIntegration(token, observer) for key, token in tokens.items()}
-        self.__values = MappingProxyType(values)
-
-    def __getattr__(self, integration_id: str) -> OAuthIntegration:
-        try:
-            return self.__values[integration_id]
-        except KeyError as error:
-            raise AttributeError(f"integration {integration_id!r} was not injected") from error
-
-    def __getitem__(self, integration_id: str) -> OAuthIntegration:
-        try:
-            return self.__values[integration_id]
-        except KeyError as error:
-            raise KeyError(f"integration {integration_id!r} was not injected") from error
-
-    def __repr__(self) -> str:
-        return f"Integrations(ids={tuple(self.__values)})"
-
-
 @dataclass(frozen=True, slots=True)
 class ActionDeclaration:
     """The reviewed contract facts one invocation enforces: request capabilities, Stored Inputs, and catalog."""
@@ -85,38 +38,37 @@ class ActionDeclaration:
 
 
 class Context:
-    """Trusted integrations and attributable human requests for one invocation."""
+    """Team-made provider calls and attributable human requests for one invocation."""
 
-    __slots__ = ("_catalog", "_human", "_operation_id", "_secrets", "_stored_input_ids", "integrations")
+    __slots__ = ("_catalog", "_channel", "_human", "_operation_id", "_secrets", "_stored_input_ids")
 
     def __init__(
         self,
-        integration_tokens: Mapping[str, str],
         declaration: ActionDeclaration | None = None,
         responses: Sequence[Mapping[str, object]] = (),
         *,
-        stored_inputs: Mapping[str, str] | None = None,
+        stored_inputs: Iterable[str] = (),
         operation_id: str | None = None,
+        channel: ProviderChannel | None = None,
     ) -> None:
         reviewed = ActionDeclaration() if declaration is None else declaration
         declared = tuple(reviewed.stored_inputs)
-        values = dict(stored_inputs or {})
+        held = frozenset(stored_inputs)
         if (
             len(declared) > _MAX_STORED_INPUTS
             or len(declared) != len(set(declared))
             or any(not valid_id(stored_input) for stored_input in declared)
-            or set(values) - set(declared)
-            or any(not isinstance(value, str) or not 1 <= len(value) <= 1024 for value in values.values())
+            or held - set(declared)
         ):
             raise ValueError("Action Stored Input invocation is invalid")
         if operation_id is not None and not valid_operation_id(operation_id):
             raise ValueError("Action operation_id is invalid")
         self._operation_id = operation_id
+        self._channel = channel
         self._secrets: list[str] = []
         self._stored_input_ids = frozenset(declared)
         self._catalog = index_catalog(reviewed.messages)
-        self._human = HumanRequestRuntime(reviewed.human_requests, responses, values, self._catalog)
-        self.integrations = Integrations(integration_tokens, self._human.observe_token)
+        self._human = HumanRequestRuntime(reviewed.human_requests, responses, held, self._catalog)
 
     @property
     def operation_id(self) -> str:
@@ -129,11 +81,29 @@ class Context:
             raise RuntimeError("Action operation_id exists only during a Team invocation")
         return self._operation_id
 
-    def register_secret(self, value: str) -> None:
-        """Protect one secret the Action derived or acquired, so no failure diagnostic can disclose it.
+    async def fetch(
+        self,
+        method: str,
+        url: str,
+        *,
+        headers: Headers = (),
+        body: bytes | str | None = None,
+        timeout_ms: int | None = None,
+    ) -> Response:
+        """Ask Team to make one HTTPS call to a declared host and return the complete response.
 
-        Integration tokens, Stored Input values, and password responses are already protected.
+        Team adds every credential this Action declares for that host, so the Action never sends or sees one. The call
+        closes the human-request phase. ``timeout_ms`` is at most 30000; the invocation's own deadline always applies.
+        Raises ``FetchError`` when Team makes no usable call.
         """
+        if self._channel is None:
+            raise RuntimeError("Action provider calls exist only during a Team invocation")
+        frame = request_frame(method, url, headers, body, timeout_ms)
+        self._human.observe_call()
+        return self._channel.call(frame)
+
+    def register_secret(self, value: str) -> None:
+        """Protect one secret the Action derived or acquired, so no failure diagnostic can disclose it."""
         if not isinstance(value, str) or not 1 <= len(value) <= _MAX_SECRET or len(self._secrets) >= _MAX_SECRETS:
             raise ValueError("Action secret registration is invalid")
         self._secrets.append(value)
@@ -150,26 +120,27 @@ class Context:
         descriptor = copy_descriptor(title, description, self._catalog)
         self._human.resolve(f"auth:{authentication}", descriptor)
 
-    def request_input(self, request: InputRequest) -> str | list[str]:
+    def request_input(self, request: InputRequest) -> str | list[str] | None:
         """Pause for one closed, specialized input field.
 
-        A request naming a Stored Input returns that value the way ``request_stored_inputs`` returns several.
+        A request naming a Stored Input returns ``None`` once Team holds it, the way ``request_stored_inputs`` does.
         """
         if not isinstance(request, InputRequest):
             raise TypeError("Action input request is invalid")
         if request.stored_input is not None:
-            return self.request_stored_inputs(request)[0]
+            self.request_stored_inputs(request)
+            return None
         value = self._human.resolve(f"input:{request.kind}", input_descriptor(request, self._catalog))
         if not isinstance(value, str | list):
             raise ValueError("Action human input response is invalid")
         return value
 
-    def request_stored_inputs(self, *requests: InputRequest) -> tuple[str, ...]:
-        """Return the values of several declared Stored Inputs together, in request order.
+    def request_stored_inputs(self, *requests: InputRequest) -> None:
+        """Return once Team holds every one of several declared Stored Inputs.
 
         Each request is a password ``InputRequest`` naming a distinct Stored Input this Action declares. Team asks the
-        person only for a value it does not keep yet, one request at a time, and returns no value until it holds all
-        of them, so the Action can use none before it has every one. No human request may follow.
+        person only for a value it does not keep yet, one request at a time. The values never reach the Action: Team
+        places each in the provider calls it makes for this Action (ADR-0106).
         """
         if not requests or not all(isinstance(request, InputRequest) for request in requests):
             raise TypeError("Action Stored Input requests are invalid")
@@ -179,7 +150,7 @@ class Context:
         if len(set(stored_inputs)) != len(stored_inputs):
             raise ValueError("Action Stored Input requests must be distinct")
         descriptors = [input_descriptor(request, self._catalog) for request in requests]
-        return self._human.resolve_stored_inputs(list(zip(stored_inputs, descriptors, strict=True)))
+        self._human.resolve_stored_inputs(list(zip(stored_inputs, descriptors, strict=True)))
 
     def reject_stored_input(self, stored_input: str) -> None:
         """Reject one exact Stored Input resolved by this invocation."""
@@ -187,12 +158,8 @@ class Context:
             raise ValueError("Action Stored Input is undeclared")
         self._human.reject_stored_input(stored_input)
 
-    def _finish(self, result: object) -> None:
-        self._human.finish(result)
+    def _finish(self) -> None:
+        self._human.finish()
 
     def _authorized(self) -> bool:
         return self._human.authorized()
-
-
-def _ignore_observation() -> None:
-    pass

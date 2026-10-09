@@ -12,7 +12,6 @@ from _fixtures import write_icon
 from shimpz import Context
 from shimpz import _failure as failure_module
 from shimpz._failure import FALLBACK_TYPE, failure_envelope
-from shimpz._human import HumanRequestSuspension
 from shimpz._project import AssistantProject
 from shimpz._protocol.failure import failure_error
 from shimpz._redaction import REDACTED, WINDOW
@@ -37,13 +36,12 @@ genesis = "Test examples safely."
 [network]
 allowed_hosts = ["api.example.com"]
 
-[integrations.example]
-scopes = ["records:write"]
-
 [stored_inputs.api-key]
 kind = "password"
 label = "API key"
 description = "Key used to call the example API."
+host = "api.example.com"
+header = "X-Api-Key"
 """
 ACTION = """
 from typing import TypedDict
@@ -55,9 +53,9 @@ class Result(TypedDict):
     id: str
 
 
-@action(description="Runs one reviewed operation.", integrations=["example"], stored_inputs=["api-key"], human_requests=["input:password"])
+@action(description="Runs one reviewed operation.", stored_inputs=["api-key"], human_requests=["input:password"])
 async def run(mode: str, *, ctx: Context) -> Result:
-    key = ctx.request_input(
+    ctx.request_input(
         InputRequest(
             kind="password",
             title=text("API key"),
@@ -66,14 +64,11 @@ async def run(mode: str, *, ctx: Context) -> Result:
             stored_input="api-key",
         )
     )
-    session = "derived-" + key[::-1]
+    session = "derived-" + mode[::-1]
     ctx.register_secret(session)
-    token = ctx.integrations.example.access_token
     if mode == "result":
         return {"id": 7}
-    if mode == "echo":
-        return {"id": key}
-    raise RuntimeError(f"rejected token={token} key {key} session {session}")
+    raise RuntimeError(f"rejected session {session}")
 """
 
 
@@ -130,66 +125,28 @@ def _project(root: Path) -> AssistantProject:
     return AssistantProject.load(root)
 
 
-def _invoke(project: AssistantProject, mode: str, stored_inputs: dict[str, str]) -> dict[str, object]:
-    invocation = ActionInvocation(
-        inputs={"mode": mode},
-        integrations={"example": "integration-token-1"},
-        stored_inputs=stored_inputs,
-        operation_id=OPERATION_ID,
-    )
+def _invoke(project: AssistantProject, mode: str) -> dict[str, object]:
+    invocation = ActionInvocation(inputs={"mode": mode}, stored_inputs=("api-key",), operation_id=OPERATION_ID)
     with pytest.raises(ActionFailure) as captured:
         asyncio.run(invoke_action(project, "act", invocation))
     assert failure_error(captured.value.envelope) is None
     return captured.value.envelope["failure"]
 
 
-def test_an_action_failure_redacts_every_invocation_and_registered_secret(tmp_path: Path) -> None:
-    failure = _invoke(_project(tmp_path / "assistant"), "raise", {"api-key": "stored-key-9"})
+def test_an_action_failure_redacts_every_registered_secret(tmp_path: Path) -> None:
+    failure = _invoke(_project(tmp_path / "assistant"), "raise")
 
     assert failure["error_type"] == "RuntimeError"
-    assert failure["message"] == f"rejected token={REDACTED} key {REDACTED} session {REDACTED}"
+    assert failure["message"] == f"rejected session {REDACTED}"
     assert failure["redacted"] is True
-    for secret in ("integration-token-1", "stored-key-9", "derived-9-yek-derots"):
-        assert secret not in json.dumps(failure)
+    assert "derived-esiar" not in json.dumps(failure)
 
 
-def test_a_password_response_is_protected_in_the_failure(tmp_path: Path) -> None:
-    project = _project(tmp_path / "assistant")
-    invocation = ActionInvocation(
-        inputs={"mode": "raise"},
-        integrations={"example": "integration-token-1"},
-        stored_inputs={},
-        operation_id=OPERATION_ID,
-    )
-    with pytest.raises(HumanRequestSuspension) as suspension:
-        asyncio.run(invoke_action(project, "act", invocation))
-    frame = suspension.value.request
-    response = {"kind": frame["kind"], "ordinal": 0, "fingerprint": frame["fingerprint"], "value": "typed-pass"}
-    replay = ActionInvocation(
-        inputs={"mode": "raise"},
-        integrations={"example": "integration-token-1"},
-        stored_inputs={},
-        operation_id=OPERATION_ID,
-        responses=(response,),
-    )
-
-    with pytest.raises(ActionFailure) as captured:
-        asyncio.run(invoke_action(project, "act", replay))
-
-    assert "typed-pass" not in json.dumps(captured.value.envelope)
-    assert "ssap-depyt" not in json.dumps(captured.value.envelope)
-
-
-def test_result_validation_and_secret_echo_are_handled_failures(tmp_path: Path) -> None:
-    project = _project(tmp_path / "assistant")
-
-    invalid = _invoke(project, "result", {"api-key": "stored-key-9"})
-    echoed = _invoke(project, "echo", {"api-key": "stored-key-9"})
+def test_result_validation_is_a_handled_failure(tmp_path: Path) -> None:
+    invalid = _invoke(_project(tmp_path / "assistant"), "result")
 
     assert invalid["error_type"] == "ValueError"
     assert invalid["message"] == "Action result does not match its annotation"
-    assert echoed["error_type"] == "ValueError"
-    assert echoed["message"] == "Action result exposes human password input"
 
 
 def test_a_provider_error_reports_its_host_status_and_sanitized_excerpt() -> None:
@@ -416,11 +373,11 @@ def test_an_empty_type_name_falls_back() -> None:
 @pytest.mark.parametrize("value", ["", "x" * 16_385, 7])
 def test_context_refuses_an_invalid_secret_registration(value: object) -> None:
     with pytest.raises(ValueError, match="secret registration is invalid"):
-        Context({}).register_secret(value)  # type: ignore[arg-type]
+        Context().register_secret(value)  # type: ignore[arg-type]
 
 
 def test_context_bounds_secret_registrations() -> None:
-    context = Context({})
+    context = Context()
     for index in range(64):
         context.register_secret(f"secret-{index}")
 

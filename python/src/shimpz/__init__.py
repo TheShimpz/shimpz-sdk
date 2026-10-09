@@ -4,6 +4,7 @@ from ._json import strict_loads
 from .action import action
 from .context import Context
 from .effect import Mutating
+from .fetch import FetchError, Response
 from .file import File, FileContentWithheldError
 from .human import InputOption, InputRequest
 from .idempotency import Idempotency
@@ -13,6 +14,7 @@ from .verifier import Binding, VerificationOutcome, Verifier, from_input, from_o
 __all__ = [
     "Binding",
     "Context",
+    "FetchError",
     "File",
     "FileContentWithheldError",
     "Idempotency",
@@ -20,6 +22,7 @@ __all__ = [
     "InputRequest",
     "Mutating",
     "Param",
+    "Response",
     "Text",
     "VerificationOutcome",
     "Verifier",
