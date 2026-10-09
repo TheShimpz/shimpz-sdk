@@ -246,6 +246,22 @@ fn admits_several_declared_stored_inputs_as_one_sorted_list() {
         ["whatsapp-app-secret", "whatsapp-token"]
     );
 
+    let proof_alone = ActionContract::new(
+        "send-message",
+        Vec::new(),
+        vec!["whatsapp-app-secret".into()],
+        vec!["input:password".into()],
+        schema(),
+        schema(),
+    )
+    .expect("valid Action shape");
+    let error = AssistantContract::build(&manifest, vec![proof_alone], catalog(&manifest))
+        .expect_err("a proof without its signed Stored Input");
+    assert_eq!(
+        error.message(),
+        "Action declares a proof without the Stored Input it signs"
+    );
+
     let eight: Vec<String> = (1..=8).map(|index| format!("key-{index}")).collect();
     assert!(
         ActionContract::new(

@@ -202,6 +202,17 @@ fn validate_action_references<'a>(
             "Action references an undeclared Stored Input",
         ));
     }
+    // A proof is placed only beside the value it signs, so an Action declaring one declares both (ADR-0106).
+    if action.stored_inputs().iter().any(|stored_input| {
+        manifest.stored_inputs[stored_input]
+            .hmac
+            .as_ref()
+            .is_some_and(|signed| !action.stored_inputs().contains(signed))
+    }) {
+        return Err(ContractError::new(
+            "Action declares a proof without the Stored Input it signs",
+        ));
+    }
     let idempotency_provider = action
         .idempotency()
         .and_then(|declaration| declaration["provider"].as_str());
