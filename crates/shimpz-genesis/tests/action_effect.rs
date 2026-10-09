@@ -1,8 +1,9 @@
 //! Conformance with the pinned Action effect and verifier vectors.
 
+mod common;
+
 use serde::Deserialize;
 use serde_json::{Value, json};
-use sha2::{Digest, Sha256};
 use shimpz_genesis::{ActionContract, AssistantContract, AssistantManifest, Message};
 
 const ACTION_DESCRIPTION: &str = "Runs one reviewed operation.";
@@ -84,14 +85,12 @@ fn build(actions: Value) -> Result<AssistantContract, String> {
             .map_err(|error| error.to_string())
         })
         .collect::<Result<Vec<_>, String>>()?;
-    let summary = manifest.summary();
-    let messages: Vec<Message> = serde_json::from_value(json!([{
-        "id": format!("{:x}", Sha256::digest(summary)),
-        "msgid": summary,
-        "max_length": 80,
-        "params": []
-    }]))
-    .expect("summary catalog");
+    let descriptions: Vec<&str> = actions.iter().map(ActionContract::description).collect();
+    let messages: Vec<Message> = serde_json::from_value(Value::Array(common::display_messages(
+        &manifest,
+        &descriptions,
+    )))
+    .expect("display catalog");
     AssistantContract::build(&manifest, actions, messages).map_err(|error| error.to_string())
 }
 

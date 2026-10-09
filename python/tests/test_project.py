@@ -237,7 +237,7 @@ class Result(TypedDict):
     created: bool
 
 
-@action(description="Runs one reviewed operation.", integrations=["cloudflare"], human_requests=["approval"])
+@action(description="Create the DNS record.", integrations=["cloudflare"], human_requests=["approval"])
 async def run(zone: str, *, ctx: Context) -> Result:
     ctx.request_approval(title=text("Create {zone}", zone=domain(zone, max_length=60)), description=DETAIL)
     return {"created": True}
@@ -254,10 +254,12 @@ def test_contract_carries_the_statically_extracted_catalog(tmp_path: Path) -> No
     messages = json.loads(AssistantProject.load(root).contract())["messages"]
 
     assert [message["id"] for message in messages] == sorted(message["id"] for message in messages)
+    # The Action description is also the approval description, so its one message takes the tighter 120 bound.
     assert {message["msgid"]: message["max_length"] for message in messages} == {
         "Create {zone}": 80,
-        "Create the DNS record.": 500,
+        "Create the DNS record.": 120,
         "Manage DNS records.": 80,
+        "Runs only the reviewed Actions of this Assistant.": 500,
     }
 
 

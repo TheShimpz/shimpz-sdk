@@ -1,7 +1,8 @@
 //! Action machine-contract acceptance tests.
 
+mod common;
+
 use serde_json::{Value, json};
-use sha2::{Digest, Sha256};
 use shimpz_genesis::{ActionContract, AssistantContract, AssistantManifest, Message};
 
 const ACTION_DESCRIPTION: &str = "Runs one reviewed operation.";
@@ -77,14 +78,15 @@ fn schema() -> Value {
 }
 
 fn catalog(manifest: &AssistantManifest) -> Vec<Message> {
-    let summary = manifest.summary();
-    serde_json::from_value(json!([{
-        "id": format!("{:x}", Sha256::digest(summary)),
-        "msgid": summary,
-        "max_length": 80,
-        "params": []
-    }]))
-    .expect("summary catalog")
+    described_catalog(manifest, &[ACTION_DESCRIPTION])
+}
+
+fn described_catalog(manifest: &AssistantManifest, action_descriptions: &[&str]) -> Vec<Message> {
+    serde_json::from_value(Value::Array(common::display_messages(
+        manifest,
+        action_descriptions,
+    )))
+    .expect("display catalog")
 }
 
 fn action(id: &str, integrations: Vec<String>) -> ActionContract {
@@ -134,8 +136,12 @@ fn sorts_and_serializes_actions_deterministically() {
             "\"required\":[],\"type\":\"object\"},",
             "\"output_schema\":{\"additionalProperties\":false,\"properties\":{},",
             "\"required\":[],\"type\":\"object\"},\"effect\":\"mutating\"}],",
-            "\"messages\":[{\"id\":\"7d7c8069bf8aba48cbbb7251ea3ac5a2c1a3be4a337c030f1f79311381e541db\",",
-            "\"msgid\":\"Manage DNS records.\",\"max_length\":80,\"params\":[]}]}"
+            "\"messages\":[{\"id\":\"42b02c08457569e9c83c241db90a6451e0ee3759f335a3c6e5d1636cfe517706\",",
+            "\"msgid\":\"Runs only the reviewed Actions of this Assistant.\",\"max_length\":500,\"params\":[]},",
+            "{\"id\":\"7d7c8069bf8aba48cbbb7251ea3ac5a2c1a3be4a337c030f1f79311381e541db\",",
+            "\"msgid\":\"Manage DNS records.\",\"max_length\":80,\"params\":[]},",
+            "{\"id\":\"b2f6f50c459d369ee6456ef1fa5f4e1495efc4589670e95d48dcfd27938dd26e\",",
+            "\"msgid\":\"Runs one reviewed operation.\",\"max_length\":120,\"params\":[]}]}"
         )
     );
     assert_eq!(contract.sha256().expect("digest").len(), 64);
@@ -498,8 +504,8 @@ fn carries_each_action_description() {
     )
     .expect("valid Action");
     assert_eq!(action.description(), "List your DNS zones.");
-    let contract =
-        AssistantContract::build(&manifest, vec![action], catalog(&manifest)).expect("contract");
+    let catalog = described_catalog(&manifest, &["List your DNS zones."]);
+    let contract = AssistantContract::build(&manifest, vec![action], catalog).expect("contract");
     let encoded: Value =
         serde_json::from_slice(&contract.canonical_bytes().expect("bytes")).expect("JSON");
     assert_eq!(encoded["actions"][0]["description"], "List your DNS zones.");

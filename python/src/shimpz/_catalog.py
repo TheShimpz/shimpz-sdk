@@ -3,21 +3,53 @@
 from __future__ import annotations
 
 import unicodedata
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from ._extract import extract
 from ._extract_call import ExtractionError, MessageUse
 from ._protocol.message_catalog import (
+    DESCRIPTION_BOUND,
+    LINE_BOUND,
     SUMMARY_BOUND,
     catalog_error,
+    display_error,
+    display_uses,
     message_error,
     message_id,
     placeholders,
 )
 
 Message = dict[str, object]
+
+
+@dataclass(frozen=True, slots=True)
+class DisplayCopy:
+    """The manifest's displayed static copy: the summary, the description, and each Stored Input label by id."""
+
+    summary: str
+    description: str
+    labels: tuple[tuple[str, str], ...] = ()
+
+    @classmethod
+    def from_manifest(cls, manifest: Mapping[str, Any]) -> DisplayCopy:
+        """Read the displayed copy of an already validated ``shimpz.toml``."""
+        shimpz, stored = manifest["shimpz"], manifest.get("stored_inputs", {})
+        labels = tuple(sorted((stored_id, declaration["label"]) for stored_id, declaration in stored.items()))
+        return cls(shimpz["summary"], shimpz["description"], labels)
+
+    def uses(self) -> tuple[MessageUse, ...]:
+        """Return each displayed manifest text as a parameterless use within its catalog bound."""
+        return (
+            MessageUse(self.summary, (), SUMMARY_BOUND, "shimpz.toml summary"),
+            MessageUse(self.description, (), DESCRIPTION_BOUND, "shimpz.toml description"),
+            *(
+                MessageUse(label, (), LINE_BOUND, f"shimpz.toml stored_inputs.{stored_id}.label")
+                for stored_id, label in self.labels
+            ),
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,21 +60,28 @@ class StaticCatalog:
     descriptions: dict[Path, str]
 
 
-def load_catalog(root: Path, action_files: Sequence[Path], summary: str) -> StaticCatalog:
+def load_catalog(root: Path, action_files: Sequence[Path], copy: DisplayCopy) -> StaticCatalog:
     """Statically extract the catalog of the Action files and ``lib/**/*.py`` without importing them."""
     library = root / "lib"
     lib_files = sorted(library.rglob("*.py")) if library.is_dir() else []
     uses, descriptions = extract(root, action_files, lib_files)
-    return StaticCatalog(
-        build_catalog(uses, summary), {path: use.msgid for path, use in descriptions.items()}
-    )
+    messages = build_catalog(uses, tuple(descriptions.values()), copy)
+    return StaticCatalog(messages, {path: use.msgid for path, use in descriptions.items()})
 
 
-def build_catalog(uses: Sequence[MessageUse], summary: str) -> list[Message]:
-    """Return the sorted catalog for every use plus the manifest summary, refusing what Developers refuses."""
+def build_catalog(uses: Sequence[MessageUse], actions: Sequence[MessageUse], copy: DisplayCopy) -> list[Message]:
+    """Return the sorted catalog of every use, Action description, and displayed manifest text.
+
+    One message serves every use of its template and carries the smallest bound of them all; a template used with
+    other parameters is refused, as is anything else Developers refuses.
+    """
+    displayed_uses = (*actions, *copy.uses())
+    for use in displayed_uses:
+        if "{" in use.msgid or "}" in use.msgid:
+            raise ExtractionError(f"{use.location}: displayed copy takes no parameters, so braces are refused")
     declarations: dict[str, MessageUse] = {}
-    bounds: dict[str, int] = {summary: SUMMARY_BOUND}
-    for use in (*uses, MessageUse(summary, (), SUMMARY_BOUND, "shimpz.toml summary")):
+    bounds: dict[str, int] = {}
+    for use in (*uses, *displayed_uses):
         _check_use(use)
         first = declarations.setdefault(use.msgid, use)
         if first.params != use.params:
@@ -52,7 +91,8 @@ def build_catalog(uses: Sequence[MessageUse], summary: str) -> list[Message]:
         (_entry(msgid, use.params, bounds[msgid]) for msgid, use in declarations.items()),
         key=lambda message: str(message["id"]),
     )
-    error = catalog_error(messages, summary)
+    displayed = display_uses(copy.description, [use.msgid for use in actions], [label for _, label in copy.labels])
+    error = catalog_error(messages, copy.summary) or display_error(messages, displayed)
     if error is not None:
         raise ExtractionError(f"message catalog is invalid: {error}")
     return messages

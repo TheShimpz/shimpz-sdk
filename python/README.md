@@ -118,7 +118,11 @@ summary = text(
   label, 120 for a placeholder, 160 for an option description, and 500 for a description. A `text()` call written
   directly as one of those arguments takes its bound; anywhere else it needs a literal `max_length=` of 80, 120,
   160, or 500, and it can then be used only in fields at least that large.
-- The manifest `summary` joins the catalog, so it has no braces and is NFC.
+- The displayed static copy joins the catalog as parameterless messages: the manifest `summary` within 80
+  characters, the manifest `description` within 500, and each Action `description` and Stored Input `label` within
+  120, so every translation fits while the English stays within 80, 400, and 80. That copy therefore has no braces
+  and is NFC. One template used in several places is one message with the smallest bound of all its uses. A Stored
+  Input `description` is not displayed and stays outside the catalog.
 
 The generated contract carries the catalog, and each request carries `{"message": id, "params": {...}}`
 references whose fingerprint never depends on the display language. `shimpz assistant run` renders references

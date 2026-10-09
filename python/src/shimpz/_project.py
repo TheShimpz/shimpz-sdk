@@ -15,7 +15,7 @@ from pathlib import Path
 from types import ModuleType
 
 from . import _native
-from ._catalog import StaticCatalog, load_catalog
+from ._catalog import DisplayCopy, StaticCatalog, load_catalog
 from ._schema import JsonSchema, compile_action_schemas, input_file_names
 from .action import ActionBody, get_action_metadata
 from .idempotency import Idempotency
@@ -100,8 +100,8 @@ def _static_source(root: Path) -> tuple[str, tuple[Path, ...], StaticCatalog]:
     _native.validate_manifest(manifest_source)
     files = _action_files(root)
     _native.validate_source_tree(_source_entries_json(root, files))
-    summary = tomllib.loads(manifest_source)["shimpz"]["summary"]
-    return manifest_source, files, load_catalog(root, files, summary)
+    copy = DisplayCopy.from_manifest(tomllib.loads(manifest_source))
+    return manifest_source, files, load_catalog(root, files, copy)
 
 
 def _read_manifest(root: Path) -> str:

@@ -1,8 +1,9 @@
 //! JSON value bounds shared with Developers publication.
 
+mod common;
+
 use serde::Deserialize;
 use serde_json::{Value, json};
-use sha2::{Digest, Sha256};
 use shimpz_genesis::{
     ActionContract, AssistantContract, AssistantManifest, ContractError, Message,
 };
@@ -35,8 +36,9 @@ const SCHEMA_FRAME_NODES: usize = 8;
 /// The Action object, its id, its description, its three capability lists, its file input list, and its effect.
 const ACTION_FRAME_NODES: usize = 8;
 /// The contract object, its version, its Action list, its message list, and the
-/// summary message with its id, msgid, `max_length`, and parameter list.
-const CONTRACT_FRAME_NODES: usize = 9;
+/// summary, description, and Action description messages, each with its id,
+/// msgid, `max_length`, and parameter list.
+const CONTRACT_FRAME_NODES: usize = 19;
 const AT_LIMIT_VECTOR: &str =
     "schema at the 4096 JSON value bound counting enum literals and examples annotations";
 const BEYOND_LIMIT_VECTOR: &str = "schema one JSON value beyond the 4096 bound";
@@ -98,14 +100,11 @@ fn dense_contract(total: usize) -> Result<AssistantContract, ContractError> {
         })
         .collect();
     let manifest = AssistantManifest::parse(MANIFEST).expect("valid manifest");
-    let summary = manifest.summary();
-    let messages: Vec<Message> = serde_json::from_value(json!([{
-        "id": format!("{:x}", Sha256::digest(summary)),
-        "msgid": summary,
-        "max_length": 80,
-        "params": []
-    }]))
-    .expect("summary catalog");
+    let messages: Vec<Message> = serde_json::from_value(Value::Array(common::display_messages(
+        &manifest,
+        &[ACTION_DESCRIPTION],
+    )))
+    .expect("display catalog");
     AssistantContract::build(&manifest, actions, messages)
 }
 

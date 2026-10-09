@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::contract_validation::nodes_within;
-use crate::{AssistantManifest, ContractError};
+use crate::{ActionContract, AssistantManifest, ContractError};
 
 const MAX_MESSAGES: usize = 256;
 const MAX_PARAMS: usize = 8;
@@ -11,6 +11,11 @@ const MAX_CATALOG_BYTES: usize = 131_072;
 const MAX_CATALOG_NODES: usize = 4096;
 const FIELD_BOUNDS: [u16; 4] = [80, 120, 160, 500];
 const SUMMARY_BOUND: u16 = 80;
+/// The bound of the Assistant description's message: every translation of the 400-character English fits it.
+const DESCRIPTION_BOUND: u16 = 500;
+/// The bound of an Action description's or Stored Input label's message: every translation of the 80-character
+/// English line fits it.
+const LINE_BOUND: u16 = 120;
 
 /// One English catalog message referenced by Assistant-authored copy.
 ///
@@ -80,13 +85,15 @@ impl MessageParam {
     }
 }
 
-/// Validate the language-neutral structure of a message catalog.
+/// Validate the language-neutral structure of a message catalog and that it declares every displayed static text:
+/// the summary, the Assistant description, each Action description, and each Stored Input label.
 ///
 /// Template text rules that depend on Unicode data (printable, NFC, combining
 /// marks) are validated by the language binding with the protocol's reference
 /// validator before the contract is built.
 pub(crate) fn validate_messages(
     manifest: &AssistantManifest,
+    actions: &[ActionContract],
     messages: &[Message],
 ) -> Result<(), ContractError> {
     if !(1..=MAX_MESSAGES).contains(&messages.len()) {
@@ -109,17 +116,38 @@ pub(crate) fn validate_messages(
     for message in messages {
         validate_message(message)?;
     }
-    let summary = messages
-        .iter()
-        .find(|message| message.msgid == manifest.shimpz.summary);
-    if summary
-        .is_none_or(|message| !message.params.is_empty() || message.max_length > SUMMARY_BOUND)
-    {
+    if !declares(messages, &manifest.shimpz.summary, SUMMARY_BOUND) {
         return Err(ContractError::new(
             "Message catalog must declare the summary without parameters",
         ));
     }
+    let displayed = std::iter::once((manifest.description(), DESCRIPTION_BOUND))
+        .chain(
+            actions
+                .iter()
+                .map(|action| (action.description(), LINE_BOUND)),
+        )
+        .chain(
+            manifest
+                .stored_inputs()
+                .values()
+                .map(|stored_input| (stored_input.label(), LINE_BOUND)),
+        );
+    for (text, bound) in displayed {
+        if !declares(messages, text, bound) {
+            return Err(ContractError::new(
+                "Message catalog must declare the description, each Action description, and each Stored Input label without parameters",
+            ));
+        }
+    }
     Ok(())
+}
+
+/// Return whether one message has exactly `text` as its template, no parameters, and a bound of at most `bound`.
+fn declares(messages: &[Message], text: &str, bound: u16) -> bool {
+    messages.iter().any(|message| {
+        message.msgid == text && message.params.is_empty() && message.max_length <= bound
+    })
 }
 
 fn validate_message(message: &Message) -> Result<(), ContractError> {

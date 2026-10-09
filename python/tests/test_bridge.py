@@ -134,7 +134,12 @@ def test_builds_a_contract_for_the_rust_cli(tmp_path: Path) -> None:
     contract = json.loads(dispatch(["contract", str(root)], io.StringIO("")))
 
     assert contract["actions"][0]["id"] == "greet"
-    assert [message["msgid"] for message in contract["messages"]] == ["Test an example."]
+    assert contract["actions"][0]["description"] == "Runs one reviewed operation."
+    assert {message["msgid"]: message["max_length"] for message in contract["messages"]} == {
+        "Test an example.": 80,
+        "Runs only the reviewed Actions of this Assistant.": 500,
+        "Runs one reviewed operation.": 120,
+    }
 
 
 def test_invokes_a_action_from_a_stdin_request(tmp_path: Path) -> None:
@@ -298,8 +303,11 @@ def test_returns_the_catalog_without_importing_creator_code_or_its_dependencies(
 
     document = json.loads(dispatch(["catalog", str(root)], io.StringIO("")))
 
+    assert set(document) == {"summary", "messages"}
     assert document["summary"] == "Test an example."
     assert sorted(message["msgid"] for message in document["messages"]) == [
+        "Runs one reviewed operation.",
+        "Runs only the reviewed Actions of this Assistant.",
         "Send a greeting to {name}.",
         "Send greeting",
         "Test an example.",

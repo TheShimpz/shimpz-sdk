@@ -3,7 +3,7 @@
 from pathlib import Path
 
 import pytest
-from shimpz._catalog import load_catalog
+from shimpz._catalog import DisplayCopy, load_catalog
 from shimpz._extract_call import ExtractionError
 
 SUMMARY = "Publish DNS changes."
@@ -15,7 +15,7 @@ def descriptions(tmp_path: Path, source: str) -> dict[str, str]:
     actions.mkdir(exist_ok=True)
     action_file = actions / "list_zones.py"
     action_file.write_text(source, encoding="utf-8")
-    extracted = load_catalog(tmp_path, [action_file], SUMMARY).descriptions
+    extracted = load_catalog(tmp_path, [action_file], DisplayCopy(SUMMARY, SUMMARY)).descriptions
     return {path.name: text for path, text in extracted.items()}
 
 

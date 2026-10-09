@@ -25,16 +25,21 @@ genesis = "Handle examples safely."
 allowed_hosts = []
 """
 
-SUMMARY = json.dumps(
-    [
-        {
-            "id": hashlib.sha256(b"Example Assistant.").hexdigest(),
-            "msgid": "Example Assistant.",
-            "max_length": 80,
-            "params": [],
-        }
+def _catalog(*copy: tuple[str, int]) -> str:
+    messages = [
+        {"id": hashlib.sha256(text.encode()).hexdigest(), "msgid": text, "max_length": bound, "params": []}
+        for text, bound in copy
     ]
+    return json.dumps(sorted(messages, key=lambda message: message["id"]))
+
+
+# The summary, the description, and the Action description: every displayed text of the example contract.
+DISPLAYED = (
+    ("Example Assistant.", 80),
+    ("Runs only the reviewed Actions of this Assistant.", 500),
+    ("Runs one example.", 120),
 )
+CATALOG = _catalog(*DISPLAYED)
 
 SCHEMA = {
     "type": "object",
@@ -82,11 +87,11 @@ def test_builds_contract_through_genesis() -> None:
         }
     ]
 
-    contract = json.loads(_native.build_contract(MANIFEST, json.dumps(actions), SUMMARY))
+    contract = json.loads(_native.build_contract(MANIFEST, json.dumps(actions), CATALOG))
 
     assert contract["version"] == 1
     assert contract["actions"][0]["id"] == "example"
-    assert contract["messages"] == json.loads(SUMMARY)
+    assert contract["messages"] == json.loads(CATALOG)
 
 
 def test_refuses_a_catalog_without_the_summary_message() -> None:
@@ -107,6 +112,27 @@ def test_refuses_a_catalog_without_the_summary_message() -> None:
 
     with pytest.raises(ValueError, match="summary"):
         _native.build_contract(MANIFEST, json.dumps(actions), json.dumps(other))
+
+
+@pytest.mark.parametrize("omitted", range(1, len(DISPLAYED)))
+def test_refuses_a_catalog_without_the_description_or_an_action_description(omitted: int) -> None:
+    actions = [
+        {
+            "id": "example",
+            "description": "Runs one example.",
+            "integrations": [],
+            "stored_inputs": [],
+            "input_files": [],
+            "human_requests": [],
+            "effect": "read_only",
+            "input_schema": SCHEMA,
+            "output_schema": SCHEMA,
+        }
+    ]
+    partial = _catalog(*(use for index, use in enumerate(DISPLAYED) if index != omitted))
+
+    with pytest.raises(ValueError, match="must declare the description, each Action description"):
+        _native.build_contract(MANIFEST, json.dumps(actions), partial)
 
 
 def test_refuses_a_dense_action_schema_before_publication() -> None:
@@ -131,7 +157,7 @@ def test_refuses_a_dense_action_schema_before_publication() -> None:
     ]
 
     with pytest.raises(ValueError, match="Action schema has too many JSON values"):
-        _native.build_contract(MANIFEST, json.dumps(actions), SUMMARY)
+        _native.build_contract(MANIFEST, json.dumps(actions), CATALOG)
 
 
 def _pattern_actions(pattern: str) -> str:
@@ -156,7 +182,7 @@ def _pattern_actions(pattern: str) -> str:
 
 @pytest.mark.parametrize("pattern", [r"^[a-z0-9_-]{1,64}$", r"(?i)^\w+$", r"^(?P<zone>[a-z]+)\.example$"])
 def test_admits_an_annotated_pattern_publication_admits(pattern: str) -> None:
-    _native.build_contract(MANIFEST, _pattern_actions(pattern), SUMMARY)
+    _native.build_contract(MANIFEST, _pattern_actions(pattern), CATALOG)
 
 
 @pytest.mark.parametrize(
@@ -166,7 +192,7 @@ def test_refuses_an_annotated_pattern_publication_refuses(pattern: str) -> None:
     re.compile(pattern)
 
     with pytest.raises(ValueError, match="Action schema pattern is invalid"):
-        _native.build_contract(MANIFEST, _pattern_actions(pattern), SUMMARY)
+        _native.build_contract(MANIFEST, _pattern_actions(pattern), CATALOG)
 
 
 @pytest.mark.parametrize(("pattern", "subject"), [(r"^\d$", "\u0663"), (r"^\s$", "\v"), (r"\bé", "é")])

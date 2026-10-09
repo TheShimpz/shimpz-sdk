@@ -4,12 +4,13 @@ import hashlib
 from pathlib import Path
 
 import pytest
-from shimpz._catalog import load_catalog
+from shimpz._catalog import DisplayCopy, load_catalog
 from shimpz._extract_call import ExtractionError
 
 SUMMARY = "Publish DNS changes."
 HEADER = "from shimpz import Context, InputOption, InputRequest, action, dns_name, domain, identifier, integer, text\n"
-# Every Action file declares its run; the declaration reuses the summary text, so it adds no catalog message.
+# Every Action file declares its run. Its description and the manifest description reuse the summary text, so they
+# add no catalog message.
 DECLARATION = f"\n\nimport shimpz\n\n\n@shimpz.action(description={SUMMARY!r})\nasync def run() -> None:\n    pass\n"
 
 
@@ -21,7 +22,7 @@ def catalog(tmp_path: Path, source: str, *, lib: str | None = None, summary: str
     if lib is not None:
         (tmp_path / "lib").mkdir(exist_ok=True)
         (tmp_path / "lib" / "copy.py").write_text(lib, encoding="utf-8")
-    return load_catalog(tmp_path, [action_file], summary).messages
+    return load_catalog(tmp_path, [action_file], DisplayCopy(summary, SUMMARY)).messages
 
 
 def refused(tmp_path: Path, source: str, match: str, **options: str) -> str:
@@ -244,7 +245,7 @@ def test_refuses_conflicting_declarations_and_an_invalid_summary(tmp_path: Path)
     )
     assert "other parameters at actions/publish.py:2" in refused(tmp_path, conflicting, "declared with")
 
-    with pytest.raises(ExtractionError, match=r"shimpz\.toml summary: message placeholders"):
+    with pytest.raises(ExtractionError, match=r"shimpz\.toml summary: displayed copy takes no parameters"):
         catalog(tmp_path, HEADER, summary="Publish {zone}.")
 
 

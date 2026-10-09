@@ -199,8 +199,8 @@ impl AssistantContract {
     /// Validate, sort, and close a complete Action and message catalog.
     ///
     /// `messages` is the English message catalog sorted by id. Its structure,
-    /// placeholder syntax, field budgets, and summary message are validated
-    /// here; the binding validates Unicode text rules with the protocol's
+    /// placeholder syntax, field budgets, and displayed-copy messages are
+    /// validated here; the binding validates Unicode text rules with the protocol's
     /// reference validator before calling this constructor.
     ///
     /// # Errors
@@ -221,7 +221,7 @@ impl AssistantContract {
             ));
         }
         validate_catalog(manifest, &actions)?;
-        validate_messages(manifest, &messages)?;
+        validate_messages(manifest, &actions, &messages)?;
         let contract = Self {
             version: SPEC_VERSION,
             actions,

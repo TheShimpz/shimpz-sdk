@@ -222,12 +222,20 @@ def test_verifier_inputs_are_a_read_only_copy() -> None:
 
 
 def test_native_contract_generation_matches_every_action_effect_vector() -> None:
-    summary = json.dumps(
-        [{"id": hashlib.sha256(SUMMARY.encode()).hexdigest(), "msgid": SUMMARY, "max_length": 80, "params": []}]
-    )
     for case in json.loads(VECTORS.read_bytes())["cases"]:
+        # The summary, the description, the Stored Input label, and each Action description of the vector.
+        displayed = {SUMMARY: 80, "Runs only the reviewed Actions of this Assistant.": 500, "API key": 120}
+        described = [action.get("description") for action in case["actions"] if isinstance(action, dict)]
+        displayed |= {text: 120 for text in described if isinstance(text, str) and text != SUMMARY}
+        messages = sorted(
+            (
+                {"id": hashlib.sha256(text.encode()).hexdigest(), "msgid": text, "max_length": bound, "params": []}
+                for text, bound in displayed.items()
+            ),
+            key=lambda message: message["id"],
+        )
         try:
-            build_contract(MANIFEST, json.dumps(case["actions"]), summary)
+            build_contract(MANIFEST, json.dumps(case["actions"]), json.dumps(messages))
         except ValueError:
             admitted = False
         else:

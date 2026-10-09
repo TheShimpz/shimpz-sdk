@@ -4,8 +4,8 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use shimpz_genesis::{ActionContract, AssistantContract, AssistantManifest, Message};
 
-const ACTION_DESCRIPTION: &str = "Runs one reviewed operation.";
-
+/// The summary, which these structural tests also use as the description and the Action description, so that the
+/// summary message alone declares every displayed text.
 const SUMMARY: &str = "Publish DNS changes.";
 const MANIFEST: &str = r#"
 [shimpz]
@@ -14,7 +14,7 @@ id = "dns"
 version = "0.1.0"
 name = "DNS"
 summary = "Publish DNS changes."
-description = "Runs only the reviewed Actions of this Assistant."
+description = "Publish DNS changes."
 creators = ["@roxygens"]
 github = "https://github.com/TheShimpz/dns"
 genesis = "Manage DNS safely."
@@ -43,7 +43,7 @@ fn build(messages: Vec<Value>) -> Result<AssistantContract, String> {
         json!({"type": "object", "properties": {}, "required": [], "additionalProperties": false});
     let action = ActionContract::new(
         "publish",
-        ACTION_DESCRIPTION,
+        SUMMARY,
         Vec::new(),
         Vec::new(),
         vec!["approval".into()],
@@ -260,16 +260,17 @@ fn build_for(summary: &str, messages: &str) -> Result<AssistantContract, String>
     let manifest = AssistantManifest::parse(&manifest).map_err(|error| error.to_string())?;
     let schema =
         json!({"type": "object", "properties": {}, "required": [], "additionalProperties": false});
+    // The summary is also the description and the Action description, so its message declares all three.
     let action = ActionContract::new(
         "publish",
-        ACTION_DESCRIPTION,
+        summary,
         Vec::new(),
         Vec::new(),
         Vec::new(),
         schema.clone(),
         schema,
     )
-    .expect("valid Action");
+    .map_err(|error| error.message().to_owned())?;
     let messages: Vec<Message> =
         serde_json::from_str(messages).map_err(|error| error.to_string())?;
     AssistantContract::build(&manifest, vec![action], messages)
