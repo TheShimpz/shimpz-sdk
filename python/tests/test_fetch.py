@@ -72,7 +72,8 @@ def test_a_frame_carries_exactly_the_call_and_no_credential() -> None:
         ("GET", "http://api.example.com/", (), None, None),
         ("GET", "https://api.example.com/", [("X-Only",)], None, None),
         ("GET", "https://api.example.com/", {"X-Number": 1}, None, None),
-        ("POST", "https://api.example.com/", (), b"x" * (256 * 1024 + 1), None),
+        # An explicit id: pytest exports the test id in PYTEST_CURRENT_TEST, which Windows caps at 32767 characters.
+        pytest.param("POST", "https://api.example.com/", (), b"x" * (256 * 1024 + 1), None, id="oversized-body"),
         ("GET", "https://api.example.com/", (), None, 0),
         ("GET", "https://api.example.com/", (), None, 30_001),
         ("GET", "https://api.example.com/", (), None, 1.5),
