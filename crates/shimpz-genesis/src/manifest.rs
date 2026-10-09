@@ -36,6 +36,20 @@ pub struct StoredInputIntent {
     /// Optional canonical public `https` page where a person creates the value.
     #[serde(default)]
     pub(crate) help_url: Option<String>,
+    /// The one allowed host Team sends the value to (ADR-0106).
+    pub(crate) host: String,
+    /// The header field Team places the value in.
+    #[serde(default)]
+    pub(crate) header: Option<String>,
+    /// The query parameter Team places the value in.
+    #[serde(default)]
+    pub(crate) query: Option<String>,
+    /// The optional token Team writes before the value in its header.
+    #[serde(default)]
+    pub(crate) scheme: Option<String>,
+    /// The Stored Input whose value this one signs with HMAC-SHA256 when placed as a proof.
+    #[serde(default)]
+    pub(crate) hmac: Option<String>,
 }
 
 impl StoredInputIntent {
@@ -61,6 +75,36 @@ impl StoredInputIntent {
     #[must_use]
     pub fn help_url(&self) -> Option<&str> {
         self.help_url.as_deref()
+    }
+
+    /// Return the one host that receives the value.
+    #[must_use]
+    pub fn host(&self) -> &str {
+        &self.host
+    }
+
+    /// Return the header field Team places the value in, when it is a header.
+    #[must_use]
+    pub fn header(&self) -> Option<&str> {
+        self.header.as_deref()
+    }
+
+    /// Return the query parameter Team places the value in, when it is a parameter.
+    #[must_use]
+    pub fn query(&self) -> Option<&str> {
+        self.query.as_deref()
+    }
+
+    /// Return the optional token Team writes before the value in its header.
+    #[must_use]
+    pub fn scheme(&self) -> Option<&str> {
+        self.scheme.as_deref()
+    }
+
+    /// Return the Stored Input this one signs with HMAC-SHA256, when placed as a proof.
+    #[must_use]
+    pub fn hmac(&self) -> Option<&str> {
+        self.hmac.as_deref()
     }
 }
 

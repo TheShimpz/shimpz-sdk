@@ -28,6 +28,8 @@ scopes = ["dns.read", "offline_access"]
 kind = "password"
 label = "API token"
 description = "Token used to call the provider."
+host = "api.cloudflare.com"
+header = "X-Api-Key"
 "#;
 
 const ID_VECTORS: &str = include_str!("../protocol/assistant/v1/vectors/manifest-id.json");

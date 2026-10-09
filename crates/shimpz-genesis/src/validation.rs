@@ -202,7 +202,81 @@ fn validate_stored_inputs(manifest: &AssistantManifest) -> Result<(), ManifestEr
             "stored input help_url is invalid",
         )?;
     }
+    validate_placements(manifest)
+}
+
+/// Fields Team owns in every provider call, so no Stored Input may be placed in one (compared without case).
+const RESERVED_HEADERS: [&str; 12] = [
+    "accept-encoding",
+    "connection",
+    "content-length",
+    "expect",
+    "host",
+    "keep-alive",
+    "proxy-authorization",
+    "proxy-connection",
+    "te",
+    "trailer",
+    "transfer-encoding",
+    "upgrade",
+];
+
+/// Every Stored Input goes to one declared host, in a field Team does not own and no other Stored Input uses there,
+/// and a proof signs exactly one plain Stored Input of the same host (ADR-0106).
+fn validate_placements(manifest: &AssistantManifest) -> Result<(), ManifestError> {
+    let mut fields = HashSet::new();
+    for (id, intent) in &manifest.stored_inputs {
+        let field = match (&intent.header, &intent.query, &intent.scheme) {
+            (Some(header), None, scheme)
+                if valid_token(header, 64)
+                    && !RESERVED_HEADERS.contains(&header.to_ascii_lowercase().as_str())
+                    && scheme.as_deref().is_none_or(valid_scheme) =>
+            {
+                format!("header:{}", header.to_ascii_lowercase())
+            }
+            (None, Some(query), None)
+                if !query.is_empty()
+                    && query.len() <= 64
+                    && query
+                        .bytes()
+                        .all(|byte| byte.is_ascii_alphanumeric() || b"._~-".contains(&byte)) =>
+            {
+                format!("query:{query}")
+            }
+            _ => return Err(ManifestError::new("stored input placement is invalid")),
+        };
+        let proof = intent.hmac.as_deref().map(|target| {
+            manifest.stored_inputs.get(target).filter(|signed| {
+                target != id && signed.hmac.is_none() && signed.host == intent.host
+            })
+        });
+        require(
+            manifest.network.allowed_hosts.contains(&intent.host)
+                && !matches!(proof, Some(None))
+                && fields.insert((intent.host.as_str(), field)),
+            "stored input placement is invalid",
+        )?;
+    }
     Ok(())
+}
+
+fn valid_token(value: &str, maximum: usize) -> bool {
+    !value.is_empty()
+        && value.len() <= maximum
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || b"!#$%&'*+.^_`|~-".contains(&byte))
+}
+
+fn valid_scheme(value: &str) -> bool {
+    value.len() <= 32
+        && value
+            .bytes()
+            .next()
+            .is_some_and(|byte| byte.is_ascii_alphabetic())
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
 }
 
 pub(crate) fn valid_id(value: &str) -> bool {

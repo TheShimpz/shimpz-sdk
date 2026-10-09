@@ -61,11 +61,17 @@ allowed_hosts = ["graph.facebook.com"]
 kind = "password"
 label = "WhatsApp token"
 description = "Token used to call the WhatsApp API."
+host = "graph.facebook.com"
+header = "Authorization"
+scheme = "Bearer"
 
 [stored_inputs.whatsapp-app-secret]
 kind = "password"
 label = "WhatsApp app secret"
 description = "App secret used to sign WhatsApp API calls."
+host = "graph.facebook.com"
+query = "appsecret_proof"
+hmac = "whatsapp-token"
 "#;
 
 fn schema() -> Value {
