@@ -55,7 +55,7 @@ class Result(TypedDict):
     id: str
 
 
-@action(integrations=["example"], stored_inputs=["api-key"], human_requests=["input:password"])
+@action(description="Runs one reviewed operation.", integrations=["example"], stored_inputs=["api-key"], human_requests=["input:password"])
 async def run(mode: str, *, ctx: Context) -> Result:
     key = ctx.request_input(
         InputRequest(

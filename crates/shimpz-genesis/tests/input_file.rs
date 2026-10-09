@@ -5,6 +5,8 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use shimpz_genesis::{ActionContract, AssistantContract, AssistantManifest, Message};
 
+const ACTION_DESCRIPTION: &str = "Runs one reviewed operation.";
+
 const VECTORS: &str = include_str!("../protocol/assistant/v1/vectors/input-file.json");
 const MANIFEST: &str = r#"
 [shimpz]
@@ -39,8 +41,7 @@ struct Case {
 #[serde(deny_unknown_fields)]
 struct ActionInput {
     id: String,
-    #[serde(rename = "description")]
-    _description: String,
+    description: String,
     integrations: Vec<String>,
     stored_inputs: Vec<String>,
     input_files: Vec<String>,
@@ -59,6 +60,7 @@ fn build(actions: Value) -> Result<AssistantContract, String> {
         .map(|input| {
             ActionContract::new(
                 input.id,
+                input.description,
                 input.integrations,
                 input.stored_inputs,
                 input.human_requests,
@@ -107,6 +109,7 @@ fn an_action_takes_no_file_until_it_declares_one() {
         json!({"type": "object", "properties": {}, "required": [], "additionalProperties": false});
     let ordinary = ActionContract::new(
         "run",
+        ACTION_DESCRIPTION,
         vec![],
         vec![],
         vec![],
@@ -126,6 +129,7 @@ fn an_action_takes_no_file_until_it_declares_one() {
 
     let approved = ActionContract::new(
         "run",
+        ACTION_DESCRIPTION,
         vec![],
         vec![],
         vec!["approval".to_owned()],

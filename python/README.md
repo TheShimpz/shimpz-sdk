@@ -18,6 +18,7 @@ class CreatedDns(TypedDict):
 
 
 @action(
+    description="Create a DNS record in one of your zones.",
     integrations=["cloudflare"],
     human_requests=["approval", "input:choice"],
 )
@@ -42,6 +43,22 @@ async def run(zone: str, *, ctx: Context) -> CreatedDns:
     token = ctx.integrations.cloudflare.access_token
     ...
 ```
+
+## Action description
+
+Every Action declares `description`: one English line of 1 to 80 characters (Unicode code points), trimmed,
+printable, and NFC, that says what the Action does for the person. The Assistant's page shows it beside the Action id
+in the person's interface language.
+
+```python
+@action(description="List your DNS zones.", integrations=["cloudflare"], effect="read_only")
+async def run(*, ctx: Context) -> Zones: ...
+```
+
+Write it as a string literal directly in `@action(...)` or `@shimpz.action(...)` on the module-level `async def run`,
+with `action` imported from `shimpz` by name. The catalog extracts it before any Assistant code is imported, so a
+name, f-string, concatenation, call, `**mapping`, or aliased decorator is refused with a `file:line` diagnostic, and
+the imported Action must carry exactly that text.
 
 ## Assistant page
 
@@ -116,6 +133,7 @@ and request it only when the Action needs it:
 
 ```python
 @action(
+    description="Send a WhatsApp message.",
     stored_inputs=["whatsapp-token"],
     human_requests=["input:password"],
 )
@@ -142,7 +160,11 @@ each Action receives only those it declares. Request every value it needs togeth
 which returns them in request order only once Team holds all of them, asking the person for each missing one in turn:
 
 ```python
-@action(stored_inputs=["meta-access-token", "meta-app-secret"], human_requests=["input:password"])
+@action(
+    description="List your Meta ad campaigns.",
+    stored_inputs=["meta-access-token", "meta-app-secret"],
+    human_requests=["input:password"],
+)
 async def run(*, ctx: Context) -> Campaigns:
     token, secret = ctx.request_stored_inputs(
         InputRequest(kind="password", title=text("Meta access token"), description=text("..."),
@@ -188,6 +210,7 @@ class Record(TypedDict):
 
 
 @action(
+    description="Create a DNS record.",
     effect=Mutating(
         verifier=Verifier(
             action="find-record",
@@ -206,7 +229,7 @@ class Evidence(TypedDict):
     record: NotRequired[Record]
 
 
-@action(effect="read_only")
+@action(description="Find the DNS record an operation created.", effect="read_only")
 async def run(zone: str, operation: str) -> Evidence: ...
 ```
 
@@ -227,6 +250,7 @@ from shimpz import Idempotency, Mutating, action
 
 
 @action(
+    description="Create a DNS record.",
     effect=Mutating(
         idempotency=Idempotency(
             provider="api.example.com",  # one of the manifest's allowed hosts
@@ -261,7 +285,7 @@ class Upload(TypedDict):
     id: str
 
 
-@action(human_requests=["approval"])
+@action(description="Upload a document to a folder.", human_requests=["approval"])
 async def run(document: File, folder: str, *, ctx: Context) -> Upload:
     ctx.request_approval(title=text("Upload the document"), description=text("Upload the selected document."))
     data = document.read()

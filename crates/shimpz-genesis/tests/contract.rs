@@ -4,6 +4,8 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use shimpz_genesis::{ActionContract, AssistantContract, AssistantManifest, Message};
 
+const ACTION_DESCRIPTION: &str = "Runs one reviewed operation.";
+
 const MANIFEST: &str = r#"
 [shimpz]
 spec = 1
@@ -86,8 +88,16 @@ fn catalog(manifest: &AssistantManifest) -> Vec<Message> {
 }
 
 fn action(id: &str, integrations: Vec<String>) -> ActionContract {
-    ActionContract::new(id, integrations, Vec::new(), Vec::new(), schema(), schema())
-        .expect("valid Action")
+    ActionContract::new(
+        id,
+        ACTION_DESCRIPTION,
+        integrations,
+        Vec::new(),
+        Vec::new(),
+        schema(),
+        schema(),
+    )
+    .expect("valid Action")
 }
 
 #[test]
@@ -108,14 +118,16 @@ fn sorts_and_serializes_actions_deterministically() {
         String::from_utf8(contract.canonical_bytes().expect("serialize")).expect("UTF-8"),
         concat!(
             "{\"version\":1,\"actions\":[",
-            "{\"id\":\"create-dns\",\"integrations\":[],",
+            "{\"id\":\"create-dns\",\"description\":\"Runs one reviewed operation.\",",
+            "\"integrations\":[],",
             "\"stored_inputs\":[],\"input_files\":[],",
             "\"human_requests\":[],",
             "\"input_schema\":{\"additionalProperties\":false,\"properties\":{},",
             "\"required\":[],\"type\":\"object\"},",
             "\"output_schema\":{\"additionalProperties\":false,\"properties\":{},",
             "\"required\":[],\"type\":\"object\"},\"effect\":\"mutating\"},",
-            "{\"id\":\"list-zones\",\"integrations\":[\"cloudflare\"],",
+            "{\"id\":\"list-zones\",\"description\":\"Runs one reviewed operation.\",",
+            "\"integrations\":[\"cloudflare\"],",
             "\"stored_inputs\":[],\"input_files\":[],",
             "\"human_requests\":[],",
             "\"input_schema\":{\"additionalProperties\":false,\"properties\":{},",
@@ -176,6 +188,7 @@ fn admits_several_declared_stored_inputs_as_one_sorted_list() {
     let manifest = AssistantManifest::parse(STORED_INPUT_MANIFEST).expect("valid manifest");
     let action = ActionContract::new(
         "send-message",
+        ACTION_DESCRIPTION,
         Vec::new(),
         vec!["whatsapp-token".into()],
         vec!["input:password".into()],
@@ -189,6 +202,7 @@ fn admits_several_declared_stored_inputs_as_one_sorted_list() {
 
     let unknown = ActionContract::new(
         "send-message",
+        ACTION_DESCRIPTION,
         Vec::new(),
         vec!["other-token".into()],
         vec!["input:password".into()],
@@ -205,6 +219,7 @@ fn admits_several_declared_stored_inputs_as_one_sorted_list() {
 
     let both = ActionContract::new(
         "send-message",
+        ACTION_DESCRIPTION,
         Vec::new(),
         vec!["whatsapp-app-secret".into(), "whatsapp-token".into()],
         vec!["input:password".into()],
@@ -223,6 +238,7 @@ fn admits_several_declared_stored_inputs_as_one_sorted_list() {
     assert!(
         ActionContract::new(
             "send-message",
+            ACTION_DESCRIPTION,
             Vec::new(),
             eight.clone(),
             vec!["input:password".into()],
@@ -239,6 +255,7 @@ fn admits_several_declared_stored_inputs_as_one_sorted_list() {
     ] {
         let error = ActionContract::new(
             "send-message",
+            ACTION_DESCRIPTION,
             Vec::new(),
             refused,
             vec!["input:password".into()],
@@ -251,6 +268,7 @@ fn admits_several_declared_stored_inputs_as_one_sorted_list() {
 
     let missing_request = ActionContract::new(
         "send-message",
+        ACTION_DESCRIPTION,
         Vec::new(),
         vec!["whatsapp-token".into()],
         Vec::new(),
@@ -272,6 +290,7 @@ fn rejects_open_or_non_object_schemas() {
     ] {
         let error = ActionContract::new(
             "list-zones",
+            ACTION_DESCRIPTION,
             Vec::new(),
             Vec::new(),
             Vec::new(),
@@ -298,6 +317,7 @@ fn rejects_unsupported_nested_schema_keywords() {
     });
     let error = ActionContract::new(
         "list-zones",
+        ACTION_DESCRIPTION,
         Vec::new(),
         Vec::new(),
         Vec::new(),
@@ -336,6 +356,7 @@ fn accepts_closed_nested_objects_and_arrays() {
 
     ActionContract::new(
         "list-zones",
+        ACTION_DESCRIPTION,
         Vec::new(),
         Vec::new(),
         Vec::new(),
@@ -349,6 +370,7 @@ fn accepts_closed_nested_objects_and_arrays() {
 fn rejects_more_than_four_integrations_per_action() {
     let error = ActionContract::new(
         "list-zones",
+        ACTION_DESCRIPTION,
         vec!["a".into(), "b".into(), "c".into(), "d".into(), "e".into()],
         Vec::new(),
         Vec::new(),
@@ -397,6 +419,7 @@ fn rejects_oversized_and_hyphen_actions() {
     });
     let size = ActionContract::new(
         "list-zones",
+        ACTION_DESCRIPTION,
         Vec::new(),
         Vec::new(),
         Vec::new(),
@@ -408,6 +431,7 @@ fn rejects_oversized_and_hyphen_actions() {
 
     let id = ActionContract::new(
         "a--b",
+        ACTION_DESCRIPTION,
         Vec::new(),
         Vec::new(),
         Vec::new(),
@@ -422,6 +446,7 @@ fn rejects_oversized_and_hyphen_actions() {
 fn validates_and_sorts_human_request_capabilities() {
     let action = ActionContract::new(
         "confirm-dns",
+        ACTION_DESCRIPTION,
         Vec::new(),
         Vec::new(),
         vec!["input:text".into(), "approval".into()],
@@ -433,6 +458,7 @@ fn validates_and_sorts_human_request_capabilities() {
 
     let invalid = ActionContract::new(
         "confirm-dns",
+        ACTION_DESCRIPTION,
         Vec::new(),
         Vec::new(),
         vec!["input:unknown".into()],
@@ -444,6 +470,7 @@ fn validates_and_sorts_human_request_capabilities() {
 
     let duplicated_authority = ActionContract::new(
         "confirm-dns",
+        ACTION_DESCRIPTION,
         Vec::new(),
         Vec::new(),
         vec!["approval".into(), "auth:password".into()],
@@ -455,4 +482,56 @@ fn validates_and_sorts_human_request_capabilities() {
         duplicated_authority.message(),
         "Action must declare at most one authorization request"
     );
+}
+
+#[test]
+fn carries_each_action_description() {
+    let manifest = AssistantManifest::parse(NO_ACCOUNTS).expect("valid manifest");
+    let action = ActionContract::new(
+        "list-zones",
+        "List your DNS zones.",
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+        schema(),
+        schema(),
+    )
+    .expect("valid Action");
+    assert_eq!(action.description(), "List your DNS zones.");
+    let contract =
+        AssistantContract::build(&manifest, vec![action], catalog(&manifest)).expect("contract");
+    let encoded: Value =
+        serde_json::from_slice(&contract.canonical_bytes().expect("bytes")).expect("JSON");
+    assert_eq!(encoded["actions"][0]["description"], "List your DNS zones.");
+}
+
+#[test]
+fn bounds_the_action_description_at_80_code_points() {
+    let describe = |description: &str| {
+        ActionContract::new(
+            "list-zones",
+            description,
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            schema(),
+            schema(),
+        )
+        .map(|action| action.description().chars().count())
+        .map_err(|error| error.message())
+    };
+    assert_eq!(describe(&"a".repeat(80)), Ok(80));
+    assert_eq!(describe(&"\u{1F600}".repeat(80)), Ok(80));
+    for refused in [
+        "a".repeat(81),
+        "\u{1F600}".repeat(81),
+        String::new(),
+        " List zones.".to_owned(),
+        "List zones. ".to_owned(),
+        "List\nzones.".to_owned(),
+        "List\u{200b}zones.".to_owned(),
+        "List \u{202e}zones.".to_owned(),
+    ] {
+        assert_eq!(describe(&refused), Err("Action description is invalid"));
+    }
 }

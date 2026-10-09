@@ -7,6 +7,7 @@ from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass
 from typing import ParamSpec, TypeVar
 
+from ._protocol.message_catalog import LINE_CHARS, public_text
 from .effect import Mutating
 from .idempotency import Idempotency
 from .verifier import Effect, Verifier
@@ -25,6 +26,7 @@ ActionBody = Callable[Params, Awaitable[Result]]
 class ActionMetadata:
     """Immutable author intent attached to an Action body."""
 
+    description: str
     integrations: tuple[str, ...]
     stored_inputs: tuple[str, ...]
     human_requests: tuple[str, ...]
@@ -35,6 +37,7 @@ class ActionMetadata:
 
 def action(
     *,
+    description: str,
     integrations: Iterable[str] = (),
     stored_inputs: Iterable[str] = (),
     human_requests: Iterable[str] = (),
@@ -42,10 +45,15 @@ def action(
 ) -> Callable[[ActionBody], ActionBody]:
     """Declare an async ``run`` function as the Action in its Python file.
 
+    ``description`` is one English line of 1 to 80 characters that says what the Action does for the person, shown
+    beside its id on the Assistant's page and translated with the message catalog. Write it as a string literal
+    directly in the decorator: the catalog extracts it before any Assistant code is imported.
+
     ``effect`` is ``"mutating"`` unless the Action is declared ``"read_only"``: it then must have no business side
     effect such as publishing, deleting, or delivering a message. ``Mutating(verifier=..., idempotency=...)`` declares
     a mutating Action together with how Team may verify it and how its provider deduplicates it.
     """
+    _validate_description(description)
     integration_ids = _validate_integrations(integrations)
     stored_input_ids = _validate_stored_inputs(stored_inputs)
     request_capabilities = _validate_human_requests(human_requests)
@@ -71,6 +79,7 @@ def action(
             body,
             _METADATA_ATTRIBUTE,
             ActionMetadata(
+                description=description,
                 integrations=integration_ids,
                 stored_inputs=stored_input_ids,
                 human_requests=request_capabilities,
@@ -88,6 +97,15 @@ def get_action_metadata(body: object) -> ActionMetadata | None:
     """Return declaration metadata without maintaining a global registry."""
     metadata = getattr(body, _METADATA_ATTRIBUTE, None)
     return metadata if isinstance(metadata, ActionMetadata) else None
+
+
+def _validate_description(description: object) -> None:
+    if not isinstance(description, str):
+        message = "Action description must be a string"
+        raise TypeError(message)
+    if not public_text(description, LINE_CHARS):
+        message = f"Action description must be trimmed printable NFC text of 1 to {LINE_CHARS} characters"
+        raise ValueError(message)
 
 
 def _validate_integrations(integrations: Iterable[str]) -> tuple[str, ...]:

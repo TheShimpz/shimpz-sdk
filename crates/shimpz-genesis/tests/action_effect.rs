@@ -5,6 +5,8 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use shimpz_genesis::{ActionContract, AssistantContract, AssistantManifest, Message};
 
+const ACTION_DESCRIPTION: &str = "Runs one reviewed operation.";
+
 const VECTORS: &str = include_str!("../protocol/assistant/v1/vectors/action-effect.json");
 const MANIFEST: &str = r#"
 [shimpz]
@@ -43,6 +45,7 @@ struct Case {
 #[derive(Deserialize)]
 struct ActionInput {
     id: String,
+    description: String,
     integrations: Vec<String>,
     stored_inputs: Vec<String>,
     input_files: Vec<String>,
@@ -68,6 +71,7 @@ fn build(actions: Value) -> Result<AssistantContract, String> {
                 .to_owned();
             ActionContract::new(
                 input.id,
+                input.description,
                 input.integrations,
                 input.stored_inputs,
                 input.human_requests,
@@ -107,8 +111,16 @@ fn contract_generation_matches_every_action_effect_vector() {
 fn an_action_is_mutating_until_it_declares_otherwise() {
     let schema =
         json!({"type": "object", "properties": {}, "required": [], "additionalProperties": false});
-    let action =
-        ActionContract::new("run", vec![], vec![], vec![], schema.clone(), schema).expect("Action");
+    let action = ActionContract::new(
+        "run",
+        ACTION_DESCRIPTION,
+        vec![],
+        vec![],
+        vec![],
+        schema.clone(),
+        schema,
+    )
+    .expect("Action");
     assert_eq!(action.effect(), "mutating");
     assert!(action.verifier().is_none());
     let read_only = action
@@ -146,10 +158,18 @@ fn a_read_only_effect_refuses_an_idempotency_declared_first() {
         "retention_seconds": 86_400,
         "same_payload_required": true
     });
-    let action = ActionContract::new("run", vec![], vec![], vec![], schema.clone(), schema)
-        .expect("Action")
-        .with_idempotency(Some(idempotency))
-        .expect("mutating idempotency");
+    let action = ActionContract::new(
+        "run",
+        ACTION_DESCRIPTION,
+        vec![],
+        vec![],
+        vec![],
+        schema.clone(),
+        schema,
+    )
+    .expect("Action")
+    .with_idempotency(Some(idempotency))
+    .expect("mutating idempotency");
 
     let error = action
         .clone()

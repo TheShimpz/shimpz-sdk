@@ -12,6 +12,7 @@ use shimpz_genesis::{
 #[derive(Deserialize)]
 struct ActionInput {
     id: String,
+    description: String,
     integrations: Vec<String>,
     stored_inputs: Vec<String>,
     input_files: Vec<String>,
@@ -72,6 +73,7 @@ fn build_contract(
         .map(|input| {
             ActionContract::new(
                 input.id,
+                input.description,
                 input.integrations,
                 input.stored_inputs,
                 input.human_requests,

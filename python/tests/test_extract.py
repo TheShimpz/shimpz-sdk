@@ -9,17 +9,19 @@ from shimpz._extract_call import ExtractionError
 
 SUMMARY = "Publish DNS changes."
 HEADER = "from shimpz import Context, InputOption, InputRequest, action, dns_name, domain, identifier, integer, text\n"
+# Every Action file declares its run; the declaration reuses the summary text, so it adds no catalog message.
+DECLARATION = f"\n\nimport shimpz\n\n\n@shimpz.action(description={SUMMARY!r})\nasync def run() -> None:\n    pass\n"
 
 
 def catalog(tmp_path: Path, source: str, *, lib: str | None = None, summary: str = SUMMARY) -> list[dict]:
     actions = tmp_path / "actions"
     actions.mkdir(exist_ok=True)
     action_file = actions / "publish.py"
-    action_file.write_text(source, encoding="utf-8")
+    action_file.write_text(source + DECLARATION, encoding="utf-8")
     if lib is not None:
         (tmp_path / "lib").mkdir(exist_ok=True)
         (tmp_path / "lib" / "copy.py").write_text(lib, encoding="utf-8")
-    return load_catalog(tmp_path, [action_file], summary)
+    return load_catalog(tmp_path, [action_file], summary).messages
 
 
 def refused(tmp_path: Path, source: str, match: str, **options: str) -> str:

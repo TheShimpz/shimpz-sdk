@@ -36,7 +36,7 @@ class Result(TypedDict):
     greeting: str
 
 
-@action()
+@action(description="Runs one reviewed operation.")
 async def run(name: str) -> Result:
     print("FORGED-STDOUT-BYTES")
     raise SystemExit(0)
@@ -52,7 +52,7 @@ class Result(TypedDict):
     greeting: str
 
 
-@action()
+@action(description="Runs one reviewed operation.")
 async def run(name: str) -> Result:
     raise LookupError(f"zone {name} is not delegated to this account")
 """
@@ -70,7 +70,7 @@ class Result(TypedDict):
     greeting: str
 
 
-@action()
+@action(description="Runs one reviewed operation.")
 async def run(name: str) -> Result:
     print("CHATTER-ON-STDOUT")
     print("CHATTER-ON-STDERR", file=sys.stderr)
@@ -89,7 +89,7 @@ class Result(TypedDict):
     greeting: str
 
 
-@action()
+@action(description="Runs one reviewed operation.")
 async def run(name: str) -> Result:
     print("CHATTER-ON-STDOUT")
     return {"greeting": f"Hello, {name}"}

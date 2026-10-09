@@ -48,7 +48,7 @@ class Result(TypedDict):
     bytes: int
 
 
-@action(human_requests=["approval"])
+@action(description="Runs one reviewed operation.", human_requests=["approval"])
 async def run(document: File, folder: str, *, ctx: Context) -> Result:
     ctx.request_approval(title=text("Store the document"), description=text("Store the selected document."))
     return {"name": document.name, "digest": document.sha256, "bytes": len(document.read())}
@@ -64,7 +64,7 @@ class Result(TypedDict):
     bytes: int
 
 
-@action(human_requests=["approval"])
+@action(description="Runs one reviewed operation.", human_requests=["approval"])
 async def run(document: File, *, ctx: Context) -> Result:
     size = len(document.read())
     ctx.request_approval(title=text("Store the document"), description=text("Store the selected document."))
@@ -82,7 +82,7 @@ class Result(TypedDict):
     bytes: int
 
 
-@action(human_requests=["auth:passkey"])
+@action(description="Runs one reviewed operation.", human_requests=["auth:passkey"])
 async def run(document: File, folder: str, *, ctx: Context) -> Result:
     Path(folder).write_text("the Action body ran", encoding="utf-8")
     try:
@@ -104,7 +104,7 @@ class Result(TypedDict):
     bytes: int
 
 
-@action(human_requests=["approval"])
+@action(description="Runs one reviewed operation.", human_requests=["approval"])
 async def run(document: File, folder: str, *, ctx: Context) -> Result:
     if folder == "early":
         raise ValueError(f"cannot store {document.name}")
@@ -130,7 +130,7 @@ class Result(TypedDict):
     name: str
 
 
-@action()
+@action(description="Runs one reviewed operation.")
 async def run(document: File) -> Result:
     return {"name": document.name}
 """
@@ -149,7 +149,7 @@ class Result(TypedDict):
     name: str
 
 
-@action(human_requests=["approval"])
+@action(description="Runs one reviewed operation.", human_requests=["approval"])
 async def run(upload: Upload) -> Result:
     return {"name": "never"}
 """

@@ -71,6 +71,7 @@ def test_builds_contract_through_genesis() -> None:
     actions = [
         {
             "id": "example",
+            "description": "Runs one example.",
             "integrations": [],
             "stored_inputs": [],
             "input_files": [],
@@ -92,6 +93,7 @@ def test_refuses_a_catalog_without_the_summary_message() -> None:
     actions = [
         {
             "id": "example",
+            "description": "Runs one example.",
             "integrations": [],
             "stored_inputs": [],
             "input_files": [],
@@ -117,6 +119,7 @@ def test_refuses_a_dense_action_schema_before_publication() -> None:
     actions = [
         {
             "id": "example",
+            "description": "Runs one example.",
             "integrations": [],
             "stored_inputs": [],
             "input_files": [],
@@ -138,6 +141,7 @@ def _pattern_actions(pattern: str) -> str:
         [
             {
                 "id": "example",
+                "description": "Runs one example.",
                 "integrations": [],
                 "stored_inputs": [],
                 "input_files": [],

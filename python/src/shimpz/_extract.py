@@ -7,6 +7,7 @@ from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from ._extract_action import ACTION, action_description
 from ._extract_call import CopyField, ExtractionError, MessageUse, parse_text_call
 
 _TEXT = "text"
@@ -30,24 +31,34 @@ class _Bindings:
             and self.module
             and isinstance(node.value, ast.Name)
             and node.value.id == "shimpz"
-            and (node.attr in _API or node.attr in _REQUESTS)
+            and (node.attr in _API or node.attr in _REQUESTS or node.attr == ACTION)
         ):
             return node.attr
         return None
 
 
-def extract(root: Path, files: Sequence[Path]) -> list[MessageUse]:
-    """Return every message use in the given Creator files, refusing unsupported calls with a location."""
+def extract(
+    root: Path, action_files: Sequence[Path], lib_files: Sequence[Path]
+) -> tuple[list[MessageUse], dict[Path, MessageUse]]:
+    """Return every message use in the given Creator files and each Action file's description, refusing unsupported
+    source with a location."""
     uses: list[MessageUse] = []
-    for path in files:
-        display = path.relative_to(root).as_posix()
-        try:
-            tree = ast.parse(path.read_bytes(), filename=display)
-        except (SyntaxError, ValueError) as error:
-            line = getattr(error, "lineno", None) or 1
-            raise ExtractionError(f"{display}:{line}: source cannot be parsed") from None
-        uses.extend(_Scanner(display, tree).scan())
-    return uses
+    descriptions: dict[Path, MessageUse] = {}
+    for path in (*action_files, *lib_files):
+        scanner = _Scanner(path.relative_to(root).as_posix(), _parse(root, path))
+        uses.extend(scanner.scan())
+        if path in action_files:
+            descriptions[path] = scanner.description()
+    return uses, descriptions
+
+
+def _parse(root: Path, path: Path) -> ast.Module:
+    display = path.relative_to(root).as_posix()
+    try:
+        return ast.parse(path.read_bytes(), filename=display)
+    except (SyntaxError, ValueError) as error:
+        line = getattr(error, "lineno", None) or 1
+        raise ExtractionError(f"{display}:{line}: source cannot be parsed") from None
 
 
 class _Scanner:
@@ -84,6 +95,10 @@ class _Scanner:
                 self._fail(node, f"shimpz.{self._bindings.api(node)}() must be written directly as a text() argument")
         return uses
 
+    def description(self) -> MessageUse:
+        """Return the literal ``description=`` of this Action file's ``@action`` declaration."""
+        return action_description(self._tree, self._bindings.api, self._location)
+
     def _bind(self, node: ast.Import | ast.ImportFrom) -> None:
         if isinstance(node, ast.Import):
             self._bind_modules(node)
@@ -110,7 +125,7 @@ class _Scanner:
                 self._fail(node, "import text from shimpz itself, not through the shimpz.message module")
             if alias.name in _API and alias.asname not in {None, alias.name}:
                 self._fail(node, "import text and its parameter kinds from shimpz by name, without an alias")
-        self._bind_names(node, _API | _REQUESTS)
+        self._bind_names(node, _API | _REQUESTS | {ACTION})
 
     def _bind_modules(self, node: ast.Import) -> None:
         for alias in node.names:

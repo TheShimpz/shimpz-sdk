@@ -7,6 +7,8 @@ use shimpz_genesis::{
     ActionContract, AssistantContract, AssistantManifest, ContractError, Message,
 };
 
+const ACTION_DESCRIPTION: &str = "Runs one reviewed operation.";
+
 const SCHEMA_VECTORS: &str = include_str!("../protocol/assistant/v1/vectors/action-schema.json");
 const MANIFEST: &str = r#"
 [shimpz]
@@ -30,8 +32,8 @@ const CONTRACT_ERROR: &str = "Action contract has too many JSON values";
 /// Root, `type`, `additionalProperties`, `required`, `properties`, the `p`
 /// property schema, its `type`, and its `enum` list.
 const SCHEMA_FRAME_NODES: usize = 8;
-/// The Action object, its id, its three capability lists, its file input list, and its effect.
-const ACTION_FRAME_NODES: usize = 7;
+/// The Action object, its id, its description, its three capability lists, its file input list, and its effect.
+const ACTION_FRAME_NODES: usize = 8;
 /// The contract object, its version, its Action list, its message list, and the
 /// summary message with its id, msgid, `max_length`, and parameter list.
 const CONTRACT_FRAME_NODES: usize = 9;
@@ -70,6 +72,7 @@ fn action(
 ) -> Result<ActionContract, ContractError> {
     ActionContract::new(
         id,
+        ACTION_DESCRIPTION,
         Vec::new(),
         Vec::new(),
         Vec::new(),

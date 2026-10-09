@@ -39,7 +39,7 @@ class Result(TypedDict):
     token_length: int
 
 
-@action(integrations=["cloudflare"])
+@action(description="Runs one reviewed operation.", integrations=["cloudflare"])
 async def run(zone: str, *, ctx: Context) -> Result:
     return {"token_length": len(ctx.integrations.cloudflare.access_token)}
 """

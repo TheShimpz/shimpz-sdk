@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import unicodedata
 from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 
 from ._extract import extract
@@ -19,11 +20,22 @@ from ._protocol.message_catalog import (
 Message = dict[str, object]
 
 
-def load_catalog(root: Path, action_files: Sequence[Path], summary: str) -> list[Message]:
+@dataclass(frozen=True, slots=True)
+class StaticCatalog:
+    """The statically extracted English catalog and each Action file's literal description."""
+
+    messages: list[Message]
+    descriptions: dict[Path, str]
+
+
+def load_catalog(root: Path, action_files: Sequence[Path], summary: str) -> StaticCatalog:
     """Statically extract the catalog of the Action files and ``lib/**/*.py`` without importing them."""
     library = root / "lib"
     lib_files = sorted(library.rglob("*.py")) if library.is_dir() else []
-    return build_catalog(extract(root, [*action_files, *lib_files]), summary)
+    uses, descriptions = extract(root, action_files, lib_files)
+    return StaticCatalog(
+        build_catalog(uses, summary), {path: use.msgid for path, use in descriptions.items()}
+    )
 
 
 def build_catalog(uses: Sequence[MessageUse], summary: str) -> list[Message]:

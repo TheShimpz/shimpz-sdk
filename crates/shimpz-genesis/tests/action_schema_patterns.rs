@@ -33,9 +33,17 @@ fn small() -> Value {
 /// Builds one Action with `schema` in either position and returns each refusal.
 fn refusals(schema: &Value) -> [Option<&'static str>; 2] {
     let build = |input: Value, output: Value| {
-        ActionContract::new("vector", Vec::new(), Vec::new(), Vec::new(), input, output)
-            .err()
-            .map(|error| error.message())
+        ActionContract::new(
+            "vector",
+            "Checks one schema vector.",
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            input,
+            output,
+        )
+        .err()
+        .map(|error| error.message())
     };
     [
         build(schema.clone(), small()),

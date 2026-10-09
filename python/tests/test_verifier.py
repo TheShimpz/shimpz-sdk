@@ -46,6 +46,7 @@ class Record(TypedDict):
 
 
 @action(
+    description="Runs one reviewed operation.",
     effect=Mutating(
         idempotency=Idempotency(
             provider="api.example.com",
@@ -81,7 +82,7 @@ class Evidence(TypedDict):
     record: NotRequired[Record]
 
 
-@action(effect="read_only")
+@action(description="Runs one reviewed operation.", effect="read_only")
 async def run(zone: str, operation: str) -> Evidence:
     return {"outcome": "inconclusive"}
 """
@@ -100,7 +101,7 @@ def _project(root: Path, find: str = FIND) -> AssistantProject:
 
 
 def test_an_undeclared_effect_is_mutating() -> None:
-    @action()
+    @action(description="Runs one reviewed operation.")
     async def run() -> None:
         pass
 
@@ -155,7 +156,7 @@ def test_genesis_refuses_a_mutating_verifier(tmp_path: Path) -> None:
 @pytest.mark.parametrize("effect", ["write", "", None, ["mutating"]])
 def test_rejects_an_unknown_effect(effect: object) -> None:
     with pytest.raises(ValueError, match=r"read_only, mutating, or shimpz\.Mutating"):
-        action(effect=effect)  # type: ignore[arg-type]
+        action(description="Runs one reviewed operation.", effect=effect)  # type: ignore[arg-type]
 
 
 def test_mutating_declarations_are_sdk_values() -> None:
@@ -289,7 +290,7 @@ def test_rejects_an_invalid_idempotency_declaration(changes: dict[str, object]) 
 def test_a_mutating_declaration_reaches_the_action_metadata() -> None:
     idempotency = Idempotency(**IDEMPOTENCY)  # type: ignore[arg-type]
 
-    @action(effect=Mutating(idempotency=idempotency))
+    @action(description="Runs one reviewed operation.", effect=Mutating(idempotency=idempotency))
     async def run() -> None:
         pass
 

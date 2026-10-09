@@ -60,10 +60,14 @@ fn validate_assistant_id(value: &str) -> Result<(), ManifestError> {
     require(valid, "Assistant id is invalid")
 }
 
-/// Validate one line of public text under the manifest schema's text pattern: trimmed, without C0 or C1 controls,
-/// zero-width, bidirectional, or other format controls, and at most `maximum` code points.
 fn validate_line(value: &str, maximum: usize, field: &str) -> Result<(), ManifestError> {
-    let valid = !value.is_empty()
+    require(valid_line(value, maximum), format!("{field} is invalid"))
+}
+
+/// Return whether `value` is one line of public text under the schemas' text pattern: trimmed, without C0 or C1
+/// controls, zero-width, bidirectional, or other format controls, and of 1 to `maximum` code points.
+pub(crate) fn valid_line(value: &str, maximum: usize) -> bool {
+    !value.is_empty()
         && value.chars().count() <= maximum
         && value.trim() == value
         && !value.chars().any(|character| {
@@ -71,8 +75,7 @@ fn validate_line(value: &str, maximum: usize, field: &str) -> Result<(), Manifes
                 u32::from(character),
                 0..=0x1f | 0x7f..=0x9f | 0x200b..=0x200f | 0x202a..=0x202e | 0x2060..=0x206f | 0xfeff
             )
-        });
-    require(valid, format!("{field} is invalid"))
+        })
 }
 
 fn validate_genesis(value: &str) -> Result<(), ManifestError> {

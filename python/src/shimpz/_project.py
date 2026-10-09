@@ -15,7 +15,7 @@ from pathlib import Path
 from types import ModuleType
 
 from . import _native
-from ._catalog import load_catalog
+from ._catalog import StaticCatalog, load_catalog
 from ._schema import JsonSchema, compile_action_schemas, input_file_names
 from .action import ActionBody, get_action_metadata
 from .idempotency import Idempotency
@@ -29,6 +29,7 @@ class ActionDefinition:
     """One validated Action discovered from its source file."""
 
     id: str
+    description: str
     integrations: tuple[str, ...]
     stored_inputs: tuple[str, ...]
     human_requests: tuple[str, ...]
@@ -44,6 +45,7 @@ class ActionDefinition:
         """Return the language-neutral Genesis input."""
         value: dict[str, object] = {
             "id": self.id,
+            "description": self.description,
             "integrations": list(self.integrations),
             "stored_inputs": list(self.stored_inputs),
             "input_files": list(self.input_files),
@@ -72,11 +74,11 @@ class AssistantProject:
     def load(cls, root: Path) -> AssistantProject:
         """Discover and validate an Assistant without generating files."""
         resolved = root.resolve()
-        manifest_source, files, messages = _static_source(resolved)
+        manifest_source, files, catalog = _static_source(resolved)
         _native.validate_source_icon((resolved / "icon.png").read_bytes())
         with _import_path(resolved):
-            actions = tuple(_load_action(path, resolved) for path in files)
-        return cls(root=resolved, manifest_source=manifest_source, actions=actions, messages=tuple(messages))
+            actions = tuple(_load_action(path, resolved, catalog.descriptions[path]) for path in files)
+        return cls(root=resolved, manifest_source=manifest_source, actions=actions, messages=tuple(catalog.messages))
 
     def contract(self) -> str:
         """Build the canonical in-memory contract through Genesis."""
@@ -88,11 +90,11 @@ class AssistantProject:
 
 def load_catalog_document(root: Path) -> dict[str, object]:
     """Return the manifest summary and the statically extracted English catalog without importing Creator code."""
-    manifest_source, _, messages = _static_source(root.resolve())
-    return {"summary": tomllib.loads(manifest_source)["shimpz"]["summary"], "messages": messages}
+    manifest_source, _, catalog = _static_source(root.resolve())
+    return {"summary": tomllib.loads(manifest_source)["shimpz"]["summary"], "messages": catalog.messages}
 
 
-def _static_source(root: Path) -> tuple[str, tuple[Path, ...], list[dict[str, object]]]:
+def _static_source(root: Path) -> tuple[str, tuple[Path, ...], StaticCatalog]:
     """Validate the manifest and source tree, then extract the catalog before any Creator code is imported."""
     manifest_source = _read_manifest(root)
     _native.validate_manifest(manifest_source)
@@ -167,7 +169,7 @@ def _source_entry_kind(mode: int, link_count: int) -> str:
     raise ValueError(message)
 
 
-def _load_action(path: Path, project_root: Path) -> ActionDefinition:
+def _load_action(path: Path, project_root: Path, description: str) -> ActionDefinition:
     module_name = f"_shimpz_action_{path.stem}"
     module = _load_module(module_name, path)
     try:
@@ -176,9 +178,13 @@ def _load_action(path: Path, project_root: Path) -> ActionDefinition:
         if body is None or metadata is None:
             message = f"{path.name} must declare @action async def run"
             raise ValueError(message)
+        if metadata.description != description:
+            message = f"{path.name} Action description must be the string literal written in its @action declaration"
+            raise ValueError(message)
         input_schema, output_schema = compile_action_schemas(body, project_root=project_root)
         return ActionDefinition(
             id=path.stem.replace("_", "-"),
+            description=metadata.description,
             integrations=metadata.integrations,
             stored_inputs=metadata.stored_inputs,
             human_requests=metadata.human_requests,

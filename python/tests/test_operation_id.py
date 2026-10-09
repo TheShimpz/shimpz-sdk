@@ -37,7 +37,7 @@ class Result(TypedDict):
     operation_id: str
 
 
-@action()
+@action(description="Runs one reviewed operation.")
 async def run(*, ctx: Context) -> Result:
     return {"operation_id": ctx.operation_id}
 """

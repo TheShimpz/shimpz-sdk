@@ -4,12 +4,14 @@ use serde_json::Value;
 
 use crate::contract::ActionContract;
 use crate::schema::validate_root_schema;
-use crate::validation::valid_id;
+use crate::validation::{valid_id, valid_line};
 use crate::{AssistantManifest, ContractError};
 
 const MAX_SCHEMA_BYTES: usize = 128 * 1024;
 /// Publication admits at most this many JSON values in one Action schema.
 const MAX_SCHEMA_NODES: usize = 4096;
+/// The most code points of an Action description, one line shown beside its id.
+const MAX_DESCRIPTION_CHARACTERS: usize = 80;
 /// The most Stored Inputs one Action may use: every one its manifest can declare.
 const MAX_ACTION_STORED_INPUTS: usize = 8;
 const HUMAN_REQUEST_CAPABILITIES: [&str; 11] = [
@@ -30,6 +32,7 @@ const AUTHORIZATION_REQUESTS: [&str; 4] =
 
 pub(crate) fn validate_action(
     id: &str,
+    description: &str,
     integrations: &[String],
     stored_inputs: &[String],
     human_requests: &[String],
@@ -37,6 +40,9 @@ pub(crate) fn validate_action(
     output_schema: &Value,
 ) -> Result<(), ContractError> {
     validate_action_ids(id, integrations, stored_inputs)?;
+    if !valid_line(description, MAX_DESCRIPTION_CHARACTERS) {
+        return Err(ContractError::new("Action description is invalid"));
+    }
     validate_human_requests(stored_inputs, human_requests)?;
     schema_nodes_within_limit(input_schema)?;
     schema_nodes_within_limit(output_schema)?;

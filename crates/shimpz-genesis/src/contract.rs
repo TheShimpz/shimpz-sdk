@@ -18,6 +18,7 @@ const MAX_CONTRACT_NODES: usize = 32_768;
 #[derive(Clone, Debug, Serialize, PartialEq)]
 pub struct ActionContract {
     id: String,
+    description: String,
     integrations: Vec<String>,
     stored_inputs: Vec<String>,
     input_files: Vec<String>,
@@ -32,7 +33,7 @@ pub struct ActionContract {
 }
 
 impl ActionContract {
-    /// Construct one Action using its file-derived id.
+    /// Construct one Action using its file-derived id and its one-line description.
     ///
     /// The Action declares the conservative `mutating` effect until
     /// [`ActionContract::with_effect`] declares otherwise, and no file input
@@ -40,11 +41,14 @@ impl ActionContract {
     ///
     /// # Errors
     ///
-    /// Returns an error for an invalid id, duplicated Integration, schema with
+    /// Returns an error for an invalid id, a description that is not one
+    /// trimmed line of 1 to 80 code points without control or format
+    /// characters, duplicated Integration, schema with
     /// more than 4,096 JSON values, or schema that is not a closed JSON object
     /// at its root.
     pub fn new(
         id: impl Into<String>,
+        description: impl Into<String>,
         integrations: Vec<String>,
         stored_inputs: Vec<String>,
         mut human_requests: Vec<String>,
@@ -52,8 +56,10 @@ impl ActionContract {
         output_schema: Value,
     ) -> Result<Self, ContractError> {
         let id = id.into();
+        let description = description.into();
         validate_action(
             &id,
+            &description,
             &integrations,
             &stored_inputs,
             &human_requests,
@@ -63,6 +69,7 @@ impl ActionContract {
         human_requests.sort();
         Ok(Self {
             id,
+            description,
             integrations,
             stored_inputs,
             input_files: Vec::new(),
@@ -153,6 +160,12 @@ impl ActionContract {
     #[must_use]
     pub fn id(&self) -> &str {
         &self.id
+    }
+
+    /// Return the one-line description shown beside the id, which joins the message catalog.
+    #[must_use]
+    pub fn description(&self) -> &str {
+        &self.description
     }
 
     /// Return the Integration ids required for an invocation.

@@ -4,6 +4,8 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use shimpz_genesis::{ActionContract, AssistantContract, AssistantManifest, Message};
 
+const ACTION_DESCRIPTION: &str = "Runs one reviewed operation.";
+
 const SUMMARY: &str = "Publish DNS changes.";
 const MANIFEST: &str = r#"
 [shimpz]
@@ -41,6 +43,7 @@ fn build(messages: Vec<Value>) -> Result<AssistantContract, String> {
         json!({"type": "object", "properties": {}, "required": [], "additionalProperties": false});
     let action = ActionContract::new(
         "publish",
+        ACTION_DESCRIPTION,
         Vec::new(),
         Vec::new(),
         vec!["approval".into()],
@@ -259,6 +262,7 @@ fn build_for(summary: &str, messages: &str) -> Result<AssistantContract, String>
         json!({"type": "object", "properties": {}, "required": [], "additionalProperties": false});
     let action = ActionContract::new(
         "publish",
+        ACTION_DESCRIPTION,
         Vec::new(),
         Vec::new(),
         Vec::new(),

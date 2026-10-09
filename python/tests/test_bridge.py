@@ -37,7 +37,7 @@ class Result(TypedDict):
     greeting: str
 
 
-@action()
+@action(description="Runs one reviewed operation.")
 async def run(name: str) -> Result:
     return {"greeting": f"Hello, {name}"}
 """
@@ -52,7 +52,7 @@ class Result(TypedDict):
     approved: bool
 
 
-@action(human_requests=["approval"])
+@action(description="Runs one reviewed operation.", human_requests=["approval"])
 async def run(name: str, *, ctx: Context) -> Result:
     ctx.request_approval(
         title=text("Send greeting"),
@@ -71,7 +71,7 @@ class Result(TypedDict):
     accepted: bool
 
 
-@action(stored_inputs=["whatsapp-token"], human_requests=["input:password"])
+@action(description="Runs one reviewed operation.", stored_inputs=["whatsapp-token"], human_requests=["input:password"])
 async def run(name: str, *, ctx: Context) -> Result:
     token = ctx.request_input(InputRequest(
         "password",
@@ -108,7 +108,7 @@ def slot(stored_input: str) -> InputRequest:
     )
 
 
-@action(stored_inputs=["whatsapp-app-secret", "whatsapp-token"], human_requests=["input:password"])
+@action(description="Runs one reviewed operation.", stored_inputs=["whatsapp-app-secret", "whatsapp-token"], human_requests=["input:password"])
 async def run(name: str, *, ctx: Context) -> Result:
     token, secret = ctx.request_stored_inputs(slot("whatsapp-token"), slot("whatsapp-app-secret"))
     if secret == "invalid":

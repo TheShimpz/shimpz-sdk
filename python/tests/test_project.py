@@ -38,7 +38,7 @@ class Result(TypedDict):
     created: bool
 
 
-@action(integrations=["cloudflare"])
+@action(description="Runs one reviewed operation.", integrations=["cloudflare"])
 async def run(zone: str) -> Result:
     return {"created": True}
 """
@@ -67,6 +67,7 @@ def test_discovers_one_action_per_python_file(tmp_path: Path) -> None:
     assert set(contract) == {"version", "actions", "messages"}
     assert set(contract["actions"][0]) == {
         "id",
+        "description",
         "integrations",
         "stored_inputs",
         "input_files",
@@ -75,6 +76,7 @@ def test_discovers_one_action_per_python_file(tmp_path: Path) -> None:
         "output_schema",
         "effect",
     }
+    assert contract["actions"][0]["description"] == "Runs one reviewed operation."
     assert contract["actions"][0]["stored_inputs"] == []
     assert contract["actions"][0]["input_files"] == []
     assert contract["actions"][0]["human_requests"] == []
@@ -158,10 +160,10 @@ def test_rejects_non_snake_case_action_files(tmp_path: Path) -> None:
 
 
 def test_requires_a_decorated_run(tmp_path: Path) -> None:
-    source = ACTION.replace('@action(integrations=["cloudflare"])\n', "")
+    source = ACTION.replace('@action(description="Runs one reviewed operation.", integrations=["cloudflare"])\n', "")
     root = create_project(tmp_path / "assistant", action_source=source)
 
-    with pytest.raises(ValueError, match="@action async def run"):
+    with pytest.raises(ValueError, match=r"actions/create_dns\.py:\d+: declare the Action as @action\("):
         AssistantProject.load(root)
 
 
@@ -235,7 +237,7 @@ class Result(TypedDict):
     created: bool
 
 
-@action(integrations=["cloudflare"], human_requests=["approval"])
+@action(description="Runs one reviewed operation.", integrations=["cloudflare"], human_requests=["approval"])
 async def run(zone: str, *, ctx: Context) -> Result:
     ctx.request_approval(title=text("Create {zone}", zone=domain(zone, max_length=60)), description=DETAIL)
     return {"created": True}
@@ -271,6 +273,32 @@ def test_extracts_before_importing_creator_code(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match=r"actions/create_dns\.py:\d+: .*f-string"):
         AssistantProject.load(root)
     assert not marker.exists()
+
+
+def test_refuses_a_computed_action_description_before_importing_creator_code(tmp_path: Path) -> None:
+    marker = tmp_path / "imported"
+    source = ACTION.replace(
+        "from shimpz import action",
+        f"from pathlib import Path\nfrom shimpz import action\nPath({str(marker)!r}).touch()\nDESCRIPTION = 'Create.'",
+    ).replace('description="Runs one reviewed operation."', "description=DESCRIPTION")
+    root = create_project(tmp_path / "assistant", action_source=source)
+
+    with pytest.raises(ValueError, match=r"actions/create_dns\.py:\d+: Action description must be a string literal"):
+        AssistantProject.load(root)
+    assert not marker.exists()
+
+
+def test_refuses_a_runtime_description_that_differs_from_the_declared_literal(tmp_path: Path) -> None:
+    source = ACTION.replace(
+        "from shimpz import action",
+        "import shimpz\nfrom shimpz import action\n\n\n"
+        "def action(**declaration):\n"
+        "    return shimpz.action(**{**declaration, 'description': 'Delete every record.'})\n",
+    )
+    root = create_project(tmp_path / "assistant", action_source=source)
+
+    with pytest.raises(ValueError, match="description must be the string literal written in its @action declaration"):
+        AssistantProject.load(root)
 
 
 def test_refuses_a_summary_that_cannot_join_the_catalog(tmp_path: Path) -> None:
