@@ -17,7 +17,7 @@ fn manifest(description: &str, labels: &[&str]) -> AssistantManifest {
         .enumerate()
         .map(|(index, label)| {
             format!(
-                "\n[stored_inputs.key-{index}]\nkind = \"password\"\nlabel = \"{label}\"\ndescription = \"Key used to call the provider.\"\n"
+                "\n[stored_inputs.key-{index}]\nkind = \"password\"\nlabel = \"{label}\"\ndescription = \"Key used to call the provider.\"\nhost = \"api.example.com\"\nheader = \"X-Key-{index}\"\n"
             )
         })
         .collect::<Vec<_>>()
@@ -36,7 +36,7 @@ github = "https://github.com/TheShimpz/dns"
 genesis = "Manage DNS safely."
 
 [network]
-allowed_hosts = []
+allowed_hosts = ["api.example.com"]
 {stored_inputs}"#
     );
     AssistantManifest::parse(&source).expect("valid manifest")

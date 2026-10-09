@@ -20,6 +20,7 @@ id = "example"
 version = "0.1.0"
 name = "Example"
 summary = "Test an example."
+description = "Runs only the reviewed Actions of this Assistant."
 creators = ["@roxygens"]
 github = "https://github.com/TheShimpz/example"
 genesis = "Test examples safely."
@@ -38,7 +39,7 @@ class Result(TypedDict):
     echo: str
 
 
-@action()
+@action(description="Runs one reviewed operation.")
 async def run(name: str, *, ctx: Context) -> Result:
     print("ACTION-OUTPUT-IS-DISCARDED")
     response = await ctx.fetch("POST", "https://api.example.com/v1/echo", body=name, timeout_ms=5000)
