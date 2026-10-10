@@ -28,7 +28,7 @@ fn manifest_with_help(
         .map(|(index, label)| {
             let help = help_texts[index.min(help_texts.len() - 1)];
             format!(
-                "\n[stored_inputs.key-{index}]\nkind = \"password\"\nlabel = \"{label}\"\ndescription = \"{help}\"\nhelp_url = \"https://dash.cloudflare.com/profile/api-tokens\"\nhost = \"api.example.com\"\nheader = \"X-Key-{index}\"\n"
+                "\n[stored_inputs.key-{index}]\nkind = \"password\"\nlabel = \"{label}\"\ndescription = \"{help}\"\nhelp_url = \"https://dash.cloudflare.com/profile/api-tokens\"\nhost = \"api.example.com\"\nroutes = [{{ method = \"GET\", path = \"/v1/items\" }}]\nheader = \"X-Key-{index}\"\n"
             )
         })
         .collect::<Vec<_>>()

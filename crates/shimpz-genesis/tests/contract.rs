@@ -63,6 +63,7 @@ label = "WhatsApp token"
 description = "Token used to call the WhatsApp API."
 help_url = "https://dashboard.example.com/api-keys"
 host = "graph.facebook.com"
+routes = [{ method = "POST", path = "/v23.0/*/messages" }]
 header = "Authorization"
 scheme = "Bearer"
 
@@ -72,6 +73,7 @@ label = "WhatsApp app secret"
 description = "App secret used to sign WhatsApp API calls."
 help_url = "https://dashboard.example.com/api-keys"
 host = "graph.facebook.com"
+routes = [{ method = "POST", path = "/v23.0/*/messages" }]
 query = "appsecret_proof"
 hmac = "whatsapp-token"
 "#;

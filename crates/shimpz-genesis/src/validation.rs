@@ -198,6 +198,10 @@ fn validate_stored_inputs(manifest: &AssistantManifest) -> Result<(), ManifestEr
             crate::help_url::valid_help_url(&stored_input.help_url),
             "stored input help_url is invalid",
         )?;
+        require(
+            crate::route::routes_admitted(&stored_input.routes),
+            "stored input routes are invalid",
+        )?;
     }
     validate_placements(manifest)
 }

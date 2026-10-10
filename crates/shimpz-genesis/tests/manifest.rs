@@ -30,6 +30,7 @@ label = "API token"
 description = "Token used to call the provider."
 help_url = "https://dash.cloudflare.com/profile/api-tokens"
 host = "api.cloudflare.com"
+routes = [{ method = "GET", path = "/v1/items" }]
 header = "X-Api-Key"
 "#;
 

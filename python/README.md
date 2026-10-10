@@ -204,6 +204,7 @@ label = "WhatsApp access token"
 description = "A key that lets this Assistant send WhatsApp messages for your business. In Meta Business settings, open Users > System users, add a system user, and assign it your app and your WhatsApp account. Then choose Generate token, pick your app, tick whatsapp_business_messaging and whatsapp_business_management, and copy the token."
 help_url = "https://developers.facebook.com/documentation/business-messaging/whatsapp/access-tokens"
 host = "graph.facebook.com"
+routes = [{ method = "POST", path = "/v23.0/*/messages" }]
 header = "Authorization"
 scheme = "Bearer"
 ```
@@ -215,6 +216,19 @@ provider's documentation when creating it takes several steps. It must be one ca
 2,048 characters with a path and an optional query, and no port, credentials, fragment, or dot segment, written exactly
 as a browser prints it. Wherever the value is asked for, Team shows the help text followed by one "How to get it" link
 to that page, opened in a new tab.
+
+`routes` is required: the only endpoints on `host` that ever receive the value, as 1 to 32 entries unique by method and
+path. `method` is `GET`, `HEAD`, `POST`, `PUT`, `PATCH`, or `DELETE`. `path` is at most 512 characters of
+`/`-prefixed segments, each a literal of 1 to 64 unreserved characters (`A-Z`, `a-z`, `0-9`, `-`, `.`, `_`, `~`) other
+than `.` and `..`, or `*` for exactly one concrete segment; there is no root, empty, trailing, partial-wildcard, or
+multi-segment wildcard form. An optional `query` lists 1 to 8 provider selectors that change which authority an
+endpoint acts on, such as `query = [{ name = "fields", values = ["id%2Cname"] }]`: each selector name is unique
+without regard to case, and its 1 to 16 raw values are written exactly as the Action's query encoder sends them, with
+`%` and two uppercase hexadecimal digits for a reserved character. A segment that contains `apikey`, `authoriz`,
+`credential`, `oauth`, `password`, `secret`, or `token` (compared in lowercase without `-`, `_`, `.`, and `~`) names
+an endpoint that may issue or exchange credentials, so no route may name it. Team sends the value only on a call whose
+method and exact path, before its query, match one route and that carries each of its selectors exactly once with a
+listed value; it refuses every other call before placing any credential.
 
 ## Effects and verification
 

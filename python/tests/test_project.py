@@ -197,6 +197,7 @@ kind = "password"
 label = "API key"
 description = "Key used to call the provider."
 host = "api.cloudflare.com"
+routes = [{ method = "GET", path = "/v1/items" }]
 header = "X-Api-Key"
 """
 

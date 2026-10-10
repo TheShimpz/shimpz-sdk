@@ -5,6 +5,7 @@ use serde::Deserialize;
 
 use crate::ManifestError;
 use crate::links::CreatorLinks;
+use crate::route::StoredInputRoute;
 use crate::validation::validate_manifest;
 
 /// One controller-owned Integration capability requested by an Assistant.
@@ -49,6 +50,8 @@ pub struct StoredInputIntent {
     /// The Stored Input whose value this one signs with HMAC-SHA256 when placed as a proof.
     #[serde(default)]
     pub(crate) hmac: Option<String>,
+    /// The only endpoints on `host` that ever receive the value (ADR-0106 amendment).
+    pub(crate) routes: Vec<StoredInputRoute>,
 }
 
 impl StoredInputIntent {
@@ -104,6 +107,12 @@ impl StoredInputIntent {
     #[must_use]
     pub fn hmac(&self) -> Option<&str> {
         self.hmac.as_deref()
+    }
+
+    /// Return the reviewed routes: the only endpoints on the host that ever receive the value.
+    #[must_use]
+    pub fn routes(&self) -> &[StoredInputRoute] {
+        &self.routes
     }
 }
 

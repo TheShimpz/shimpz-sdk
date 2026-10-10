@@ -42,6 +42,7 @@ label = "API key"
 description = "Key used to call the example API."
 help_url = "https://dashboard.example.com/api-keys"
 host = "api.example.com"
+routes = [{ method = "GET", path = "/v1/items" }]
 header = "X-Api-Key"
 """
 ACTION = """
