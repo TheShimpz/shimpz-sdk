@@ -308,7 +308,7 @@ dependencies = [
 
 [[package]]
 name = "shimpz-genesis"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "base64",
  "regex",
@@ -322,7 +322,7 @@ dependencies = [
 
 [[package]]
 name = "shimpz-python"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "pyo3",
  "serde",
