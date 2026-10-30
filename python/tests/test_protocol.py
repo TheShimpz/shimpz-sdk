@@ -20,6 +20,7 @@ PACKAGED = ROOT / "python/src/shimpz/_protocol"
         "human_request.py",
         "input_file.py",
         "message_catalog.py",
+        "unicode_category.py",
     ],
 )
 def test_packaged_validators_are_byte_identical_to_the_pinned_mirror(name: str) -> None:

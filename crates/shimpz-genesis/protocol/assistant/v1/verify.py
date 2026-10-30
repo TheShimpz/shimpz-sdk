@@ -11,6 +11,7 @@ import re
 import stat
 import sys
 from collections.abc import Callable
+from itertools import pairwise
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -46,6 +47,11 @@ APPLICATORS = (
 LIST_APPLICATORS = ("allOf", "anyOf", "oneOf", "prefixItems")
 MAP_APPLICATORS = ("$defs", "definitions", "dependentSchemas", "patternProperties", "properties")
 LOCAL_DEFINITION = re.compile(r"#/(\$defs|definitions)/([^/%]+)")
+# The pattern program bound an admitted pattern fits, the matching work one payload validation may charge, and the
+# outcomes a payload vector names.
+MAX_PATTERN_PROGRAM = 16_384
+MAX_PATTERN_WORK = 1 << 27
+PAYLOAD_OUTCOMES = frozenset({"valid", "invalid", "exhausted", "arithmetic", "shape"})
 # The canonical lowercase text of a random RFC 9562 version 4 UUID.
 OPERATION_ID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}")
 
@@ -103,6 +109,63 @@ def verify_reference_vectors(
             fail(f"Assistant {label} vector {case['name']!r} disagrees with the reference validator")
     if {case["valid"] for case in cases} != {False, True}:
         fail(f"Assistant {label} vectors require positive and negative cases")
+
+
+def vector_cases(filename: str, label: str) -> list[dict]:
+    """The cases of one vector file, each an object with a unique non-empty name."""
+    vectors = json.loads((HERE / filename).read_bytes())
+    cases = vectors.get("cases") if isinstance(vectors, dict) else None
+    if not isinstance(vectors, dict) or vectors.get("version") != 1 or not isinstance(cases, list) or not cases:
+        fail(f"Assistant {label} vectors have an invalid root")
+    names = [case.get("name") if isinstance(case, dict) else None for case in cases]
+    if any(not isinstance(name, str) or not name for name in names) or len(set(names)) != len(names):
+        fail(f"Assistant {label} vector case is invalid")
+    return cases
+
+
+def verify_program_vectors() -> None:
+    """Admitted patterns name their program bound and preparation, refused ones null for both; both occur."""
+    cases = vector_cases("vectors/pattern-program.json", "pattern program")
+    for case in cases:
+        program = case.get("program")
+        preparation = case.get("preparation")
+        if (
+            set(case) != {"name", "pattern", "program", "preparation"}
+            or not isinstance(case["pattern"], str)
+            or not (
+                (program is None and preparation is None)
+                or (
+                    type(program) is int
+                    and 16 <= program <= MAX_PATTERN_PROGRAM
+                    and type(preparation) is int
+                    and preparation > program
+                )
+            )
+        ):
+            fail("Assistant pattern program vector case is invalid")
+    if not {None, MAX_PATTERN_PROGRAM} <= {case["program"] for case in cases}:
+        fail("Assistant pattern program vectors do not pin the program bound")
+
+
+def verify_payload_vectors() -> None:
+    """Each payload case names its outcome and charge, and the cases pin the budget from both sides.
+
+    A validation that charges exactly the budget passes, and one whose next search would exceed it is refused.
+    """
+    cases = vector_cases("vectors/payload.json", "payload")
+    for case in cases:
+        charged = case.get("charged")
+        if (
+            set(case) != {"name", "schema", "payload", "outcome", "charged"}
+            or not isinstance(case["schema"], dict)
+            or case["outcome"] not in PAYLOAD_OUTCOMES
+            or type(charged) is not int
+            or not 0 <= charged <= MAX_PATTERN_WORK
+        ):
+            fail("Assistant payload vector case is invalid")
+    outcomes = {(case["outcome"], case["charged"] == MAX_PATTERN_WORK) for case in cases}
+    if not {("valid", True), ("exhausted", False), ("invalid", False)} <= outcomes:
+        fail("Assistant payload vectors do not pin the matching budget")
 
 
 def reference_target(root: dict, reference: object) -> object:
@@ -204,6 +267,7 @@ human_request = importlib.import_module("validators.human_request")
 input_file = importlib.import_module("validators.input_file")
 message_catalog = importlib.import_module("validators.message_catalog")
 route = importlib.import_module("validators.route")
+unicode_category = importlib.import_module("validators.unicode_category")
 EFFECTS, effect_error = action_effect.EFFECTS, action_effect.effect_error
 FAILURE_KEYS, failure_error = failure.FAILURE_KEYS, failure.failure_error
 reference_error, verify_human_vectors = human_request.reference_error, human_request.verify_vectors
@@ -311,6 +375,8 @@ if not {(True, MAX_EXPANDED_SUBSCHEMAS), (False, MAX_EXPANDED_SUBSCHEMAS + 1)} <
 ):
     fail("Assistant Action schema vectors do not pin the expanded-reference bound")
 verify_verdict_vectors("vectors/pattern.json", "pattern", {"pattern": str, "subject": str}, "matches")
+verify_program_vectors()
+verify_payload_vectors()
 verify_verdict_vectors("vectors/invocation.json", "invocation", {"invocation": dict})
 
 human = json.loads((HERE / "vectors/human-request.json").read_bytes())
@@ -383,5 +449,44 @@ try:
     verify_catalog_vectors(json.loads((HERE / "vectors/catalog.json").read_bytes()), reference_error)
 except KeyError, TypeError, ValueError:
     fail("Assistant message catalog vectors are invalid")
+
+# The pinned Unicode table is one ordered cover of every code point, and the differential vectors record what it, not
+# a newer Unicode, decides for each code point whose category differs there.
+starts, categories = unicode_category.STARTS, unicode_category.CATEGORIES
+if (
+    not starts
+    or starts[0] != 0
+    or any(left >= right for left, right in pairwise(starts))
+    or starts[-1] > 0x10FFFF
+    or len(categories) != 2 * len(starts)
+):
+    fail("Assistant Unicode category table is invalid")
+differential = json.loads((HERE / "vectors/unicode-category.json").read_bytes())
+cases = differential.get("cases")
+if (
+    set(differential) != {"version", "unicode", "newer_unicode", "cases"}
+    or differential["version"] != 1
+    or differential["unicode"] != unicode_category.UNICODE_VERSION
+    or not isinstance(cases, list)
+    or not cases
+):
+    fail("Assistant Unicode category vectors are invalid")
+previous = -1
+for case in cases:
+    if (
+        not isinstance(case, dict)
+        or set(case) != {"first", "last", "category", "newer", "public"}
+        or not isinstance(case["first"], int)
+        or not previous < case["first"] <= case["last"] <= 0x10FFFF
+        or case["category"] == case["newer"]
+    ):
+        fail("Assistant Unicode category vectors are invalid")
+    previous = case["last"]
+    for code in range(case["first"], case["last"] + 1):
+        character = chr(code)
+        if unicode_category.category(character) != case["category"] or (
+            message_catalog.public_text(character, 1) is not case["public"]
+        ):
+            fail(f"Assistant Unicode category vector U+{code:04X} differs from the pinned table")
 
 print("Assistant protocol artifacts and conformance vectors are valid")

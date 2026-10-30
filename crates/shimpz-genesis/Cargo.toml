@@ -24,6 +24,8 @@ toml = "0.9"
 
 [dev-dependencies]
 base64 = "0.22"
+# The published Action schema vectors pin a 128-level nested schema, deeper than serde_json parses by default.
+serde_json = { version = "1", features = ["unbounded_depth"] }
 
 [lints]
 workspace = true

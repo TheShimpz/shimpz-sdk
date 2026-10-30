@@ -134,7 +134,7 @@ fn action_schema_bound_is_counted_before_dialect_checks() {
 
 #[test]
 fn action_schema_bound_matches_the_pinned_protocol_vectors() {
-    let vectors: SchemaVectors = serde_json::from_str(SCHEMA_VECTORS).expect("valid vectors");
+    let vectors: SchemaVectors = schema_vectors();
     let names: Vec<&str> = vectors
         .cases
         .iter()
@@ -172,4 +172,11 @@ fn count(value: &Value) -> usize {
         Value::Object(members) => members.values().map(count).sum(),
         Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => 0,
     }
+}
+
+/// Parses the schema vectors without the default `serde_json` nesting limit: one admitted vector nests 128 levels deep.
+fn schema_vectors<T: serde::de::DeserializeOwned>() -> T {
+    let mut deserializer = serde_json::Deserializer::from_str(SCHEMA_VECTORS);
+    deserializer.disable_recursion_limit();
+    T::deserialize(&mut deserializer).expect("valid vectors")
 }

@@ -7,6 +7,7 @@ use shimpz_genesis::ActionContract;
 const SCHEMA_VECTORS: &str = include_str!("../protocol/assistant/v1/vectors/action-schema.json");
 const PATTERN_VECTORS: &str = include_str!("../protocol/assistant/v1/vectors/pattern.json");
 const PATTERN_ERROR: &str = "Action schema pattern is invalid";
+const PREPARATION_ERROR: &str = "Action schema patterns are too costly to prepare";
 
 #[derive(Deserialize)]
 struct Vectors<Case> {
@@ -66,6 +67,32 @@ fn admitted(pattern: &str) -> bool {
     }
 }
 
+/// Whether contract generation prepares all `patterns` together, each on its
+/// own generated string property.
+fn prepared(patterns: &[String]) -> bool {
+    let properties: Map<String, Value> = patterns
+        .iter()
+        .enumerate()
+        .map(|(index, pattern)| {
+            (
+                format!("p{index}"),
+                json!({"type": "string", "pattern": pattern}),
+            )
+        })
+        .collect();
+    let schema = json!({
+        "type": "object",
+        "additionalProperties": false,
+        "properties": properties,
+        "required": [],
+    });
+    match refusals(&schema) {
+        [None, None] => true,
+        [Some(PREPARATION_ERROR), Some(PREPARATION_ERROR)] => false,
+        other => panic!("unexpected refusal of {patterns:?}: {other:?}"),
+    }
+}
+
 /// Every `pattern` value and `patternProperties` name below a subschema.
 fn patterns(node: &Value, found: &mut Vec<String>) {
     match node {
@@ -93,7 +120,7 @@ fn patterns(node: &Value, found: &mut Vec<String>) {
 
 #[test]
 fn every_refused_vector_is_refused_in_either_position() {
-    let vectors: Vectors<SchemaCase> = serde_json::from_str(SCHEMA_VECTORS).expect("vectors");
+    let vectors: Vectors<SchemaCase> = schema_vectors();
     for case in vectors.cases {
         let [input, output] = refusals(&case.schema);
         if case.valid {
@@ -109,14 +136,15 @@ fn every_refused_vector_is_refused_in_either_position() {
 
 #[test]
 fn vector_patterns_are_admitted_exactly_when_publication_admits_them() {
-    let vectors: Vectors<SchemaCase> = serde_json::from_str(SCHEMA_VECTORS).expect("vectors");
+    let vectors: Vectors<SchemaCase> = schema_vectors();
     let mut exercised = 0;
     for case in vectors.cases {
         let mut found = Vec::new();
         patterns(&case.schema, &mut found);
         if !found.is_empty() {
             exercised += 1;
-            let all_admitted = found.iter().all(|pattern| admitted(pattern));
+            // Each pattern alone, then the schema's distinct patterns prepared together.
+            let all_admitted = found.iter().all(|pattern| admitted(pattern)) && prepared(&found);
             assert_eq!(all_admitted, case.valid, "{}", case.name);
         }
     }
@@ -228,4 +256,11 @@ fn program_bound_charges_each_class_by_its_members() {
         assert!(admitted(admitted_pattern), "{admitted_pattern}");
         assert!(!admitted(refused_pattern), "{refused_pattern}");
     }
+}
+
+/// Parses the schema vectors without the default `serde_json` nesting limit: one admitted vector nests 128 levels deep.
+fn schema_vectors<T: serde::de::DeserializeOwned>() -> T {
+    let mut deserializer = serde_json::Deserializer::from_str(SCHEMA_VECTORS);
+    deserializer.disable_recursion_limit();
+    T::deserialize(&mut deserializer).expect("valid vectors")
 }
