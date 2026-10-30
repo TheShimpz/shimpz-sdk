@@ -66,12 +66,16 @@ class _Scanner:
         self._display = display
         self._tree = tree
         self._bindings = _Bindings(names={})
-        self._parents: dict[ast.AST, ast.AST] = {
-            child: node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)
-        }
+        # One breadth-first pass, in ast.walk order, serves every scan below and records each node's parent.
+        self._nodes: list[ast.AST] = [tree]
+        self._parents: dict[ast.AST, ast.AST] = {}
+        for node in self._nodes:
+            for child in ast.iter_child_nodes(node):
+                self._parents[child] = node
+                self._nodes.append(child)
 
     def scan(self) -> list[MessageUse]:
-        for node in ast.walk(self._tree):
+        for node in self._nodes:
             if isinstance(node, ast.Import | ast.ImportFrom):
                 self._bind(node)
             if isinstance(node, ast.Call):
@@ -80,8 +84,9 @@ class _Scanner:
                     self._fail(node, "a call repeats a keyword argument")
         consumed: set[ast.AST] = set()
         uses: list[MessageUse] = []
-        for node in ast.walk(self._tree):
-            self._refuse_rebinding(node)
+        bound = (set(self._bindings.names or {}) & _API) | ({"shimpz"} if self._bindings.module else set())
+        for node in self._nodes:
+            self._refuse_rebinding(node, bound)
             name = self._bindings.api(node)
             if name == _TEXT:
                 call = self._parents.get(node)
@@ -90,7 +95,7 @@ class _Scanner:
                 use, helpers = parse_text_call(call, self._bindings.api, self._field(call), self._location(call))
                 consumed.update(helpers)
                 uses.append(use)
-        for node in ast.walk(self._tree):
+        for node in self._nodes:
             if self._bindings.api(node) in _HELPERS and self._parents.get(node) not in consumed:
                 self._fail(node, f"shimpz.{self._bindings.api(node)}() must be written directly as a text() argument")
         return uses
@@ -141,8 +146,7 @@ class _Scanner:
             if alias.name in admitted and alias.asname in {None, alias.name}:
                 self._bindings.names[alias.name] = alias.name  # type: ignore[index]
 
-    def _refuse_rebinding(self, node: ast.AST) -> None:
-        bound = (set(self._bindings.names or {}) & _API) | ({"shimpz"} if self._bindings.module else set())
+    def _refuse_rebinding(self, node: ast.AST, bound: set[str]) -> None:
         parent = self._parents.get(node)
         annotation_only = isinstance(parent, ast.AnnAssign) and parent.target is node and parent.value is None
         rebound = set() if annotation_only else set(_bound_names(node)) & bound
