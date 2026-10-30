@@ -12,12 +12,14 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from . import _native
-from ._failure import failure_envelope
 from ._files import bind_files
 from ._human import HumanRequestSuspension, StoredInputRejection
 from ._project import ActionDefinition, AssistantProject
 from .context import ActionDeclaration, Context
 from .fetch import ProviderChannel
+
+# Only a failed invocation builds an envelope, so a successful one never loads the redaction rules.
+lazy from ._failure import failure_envelope
 
 _MAX_VALUE_BYTES = 512 * 1_024
 

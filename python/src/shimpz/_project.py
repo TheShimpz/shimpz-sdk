@@ -71,11 +71,17 @@ class AssistantProject:
     messages: tuple[Mapping[str, object], ...]
 
     @classmethod
-    def load(cls, root: Path) -> AssistantProject:
-        """Discover and validate an Assistant without generating files."""
+    def load(cls, root: Path, *, action_id: str | None = None) -> AssistantProject:
+        """Discover and validate an Assistant without generating files.
+
+        The whole project is always validated statically. With ``action_id``, only that Action's file is imported,
+        so one invocation runs no other Action's module code; an unknown id leaves no Action.
+        """
         resolved = root.resolve()
         manifest_source, files, catalog = _static_source(resolved)
         _native.validate_source_icon((resolved / "icon.png").read_bytes())
+        if action_id is not None:
+            files = tuple(path for path in files if _action_id(path) == action_id)
         with _import_path(resolved):
             actions = tuple(_load_action(path, resolved, catalog.descriptions[path]) for path in files)
         return cls(root=resolved, manifest_source=manifest_source, actions=actions, messages=tuple(catalog.messages))
@@ -183,7 +189,7 @@ def _load_action(path: Path, project_root: Path, description: str) -> ActionDefi
             raise ValueError(message)
         input_schema, output_schema = compile_action_schemas(body, project_root=project_root)
         return ActionDefinition(
-            id=path.stem.replace("_", "-"),
+            id=_action_id(path),
             description=metadata.description,
             integrations=metadata.integrations,
             stored_inputs=metadata.stored_inputs,
@@ -198,6 +204,10 @@ def _load_action(path: Path, project_root: Path, description: str) -> ActionDefi
         )
     finally:
         sys.modules.pop(module_name, None)
+
+
+def _action_id(path: Path) -> str:
+    return path.stem.replace("_", "-")
 
 
 def _load_module(name: str, path: Path) -> ModuleType:

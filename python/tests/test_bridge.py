@@ -163,6 +163,21 @@ def test_invokes_a_action_from_a_stdin_request(tmp_path: Path) -> None:
     assert result == {"type": "result", "result": {"greeting": "Hello, Ada"}}
 
 
+def test_invocation_runs_no_other_action_module(tmp_path: Path) -> None:
+    root = create_project(tmp_path / "assistant")
+    other = ACTION.replace("Runs one reviewed operation.", "Runs another reviewed operation.")
+    (root / "actions" / "other.py").write_text(f"raise RuntimeError('imported')\n{other}", encoding="utf-8")
+    request = io.StringIO(
+        json.dumps({"input": {"name": "Ada"}, "stored_inputs": [], "files": {}, "operation_id": OPERATION_ID})
+    )
+
+    result = json.loads(dispatch(["invoke", str(root), "greet"], request))
+
+    assert result == {"type": "result", "result": {"greeting": "Hello, Ada"}}
+    with pytest.raises(RuntimeError, match="imported"):
+        dispatch(["contract", str(root)], io.StringIO(""))
+
+
 def test_rejects_duplicate_json_keys(tmp_path: Path) -> None:
     root = create_project(tmp_path / "assistant")
     request = io.StringIO(

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 import re
 import sys
@@ -10,9 +9,12 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, BinaryIO, TextIO
 
+# A command loads only what it runs: the build-time commands never import the event loop or the Action runtime, and
+# an invocation never loads the language-pack code.
+lazy import asyncio
+
 from ._human import HumanRequestSuspension, StoredInputRejection
 from ._json import strict_loads
-from ._language_pack import read_pack, verify_pack
 from ._project import AssistantProject, load_catalog_document
 from ._protocol.input_file import (
     MAX_FILE_INVOCATION_BYTES,
@@ -21,9 +23,10 @@ from ._protocol.input_file import (
     files_shape_error,
 )
 from ._reference import render_request
-from ._runtime import ActionFailure, ActionInvocation, invoke_action
 from .context import valid_operation_id
 from .fetch import ProviderChannel
+lazy from ._language_pack import read_pack, verify_pack
+lazy from ._runtime import ActionFailure, ActionInvocation, invoke_action
 
 _MAX_REQUEST_BYTES = MAX_INVOCATION_BYTES
 # The invocation schema's Stored Input bounds.
@@ -61,7 +64,7 @@ def dispatch(arguments: list[str], source: TextIO) -> str:
 
 def _invoke(root: Path, action_id: str, source: TextIO) -> str:
     """Run one invocation read as the first input line; each later line answers one provider call (ADR-0106)."""
-    project = AssistantProject.load(root)
+    project = AssistantProject.load(root, action_id=action_id)
     payload = _request(source)
     try:
         result = asyncio.run(
