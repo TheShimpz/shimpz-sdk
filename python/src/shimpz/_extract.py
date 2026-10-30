@@ -147,7 +147,7 @@ class _Scanner:
         annotation_only = isinstance(parent, ast.AnnAssign) and parent.target is node and parent.value is None
         rebound = set() if annotation_only else set(_bound_names(node)) & bound
         if rebound:
-            name = sorted(rebound)[0]
+            name = min(rebound)
             self._fail(node, f"rebinding {name!r} hides the shimpz catalog API; rename it")
         root = _root_name(node.value) if isinstance(node, ast.Attribute) else None
         if (
