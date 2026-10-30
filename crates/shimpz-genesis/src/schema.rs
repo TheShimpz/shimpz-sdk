@@ -3,12 +3,15 @@ use std::collections::HashSet;
 use serde_json::{Map, Value};
 
 use crate::ContractError;
-use crate::pattern::pattern_admitted;
+use crate::pattern::{pattern_admitted, pattern_preparation};
 
 const MAX_DEPTH: usize = 16;
+/// Publication refuses a schema whose distinct patterns prepare beyond half of
+/// one payload validation's matching budget.
+const MAX_PREPARATION_WORK: u64 = (1 << 27) / 2;
 
 pub(crate) fn validate_root_schema(schema: &Value) -> Result<(), ContractError> {
-    validate_schema(schema, 0)?;
+    validate_any_schema(schema)?;
     if schema.get("type").and_then(Value::as_str) == Some("object") {
         Ok(())
     } else {
@@ -17,7 +20,34 @@ pub(crate) fn validate_root_schema(schema: &Value) -> Result<(), ContractError> 
 }
 
 pub(crate) fn validate_any_schema(schema: &Value) -> Result<(), ContractError> {
-    validate_schema(schema, 0)
+    validate_schema(schema, 0)?;
+    let mut patterns = HashSet::new();
+    collect_patterns(schema, &mut patterns);
+    let preparation = patterns.into_iter().fold(0_u64, |total, pattern| {
+        total.saturating_add(pattern_preparation(pattern).unwrap_or(u64::MAX))
+    });
+    require(
+        preparation <= MAX_PREPARATION_WORK,
+        "Action schema patterns are too costly to prepare",
+    )
+}
+
+/// Every distinct `pattern` of a validated schema's string nodes.
+fn collect_patterns<'a>(node: &'a Value, patterns: &mut HashSet<&'a str>) {
+    match node {
+        Value::Object(object) => {
+            if let Some(pattern) = object.get("pattern").and_then(Value::as_str) {
+                patterns.insert(pattern);
+            }
+            object
+                .values()
+                .for_each(|child| collect_patterns(child, patterns));
+        }
+        Value::Array(items) => items
+            .iter()
+            .for_each(|child| collect_patterns(child, patterns)),
+        _ => {}
+    }
 }
 
 fn validate_schema(schema: &Value, depth: usize) -> Result<(), ContractError> {

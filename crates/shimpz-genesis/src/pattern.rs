@@ -11,9 +11,20 @@ use regex_syntax::ast::{
     GroupKind, HexLiteralKind, Literal, LiteralKind, Repetition,
 };
 
-use crate::pattern_bound::{MAX_REPEAT, program_within, repetition_budget, repetition_count};
+use crate::pattern_bound::{
+    MAX_REPEAT, program_cost, program_within, repetition_budget, repetition_count,
+};
 
 const MAX_PATTERN_NESTING: u32 = 32;
+/// Preparing a pattern charges a matcher's construction plus a weight per unit
+/// of its program bound, and case folding every code point its classes cover:
+/// `FOLD_WEIGHT` below `CASED_END`, where every case mapping lies, and
+/// `SCAN_WEIGHT` at or above it. These equal publication's charges.
+const PREPARATION_BASE: u64 = 1 << 16;
+const PREPARATION_WEIGHT: u64 = 256;
+const FOLD_WEIGHT: u64 = 64;
+const SCAN_WEIGHT: u64 = 4;
+const CASED_END: u32 = 0x2_0000;
 
 /// Returns whether Developers would publish this pattern.
 pub(crate) fn pattern_admitted(pattern: &str) -> bool {
@@ -22,6 +33,60 @@ pub(crate) fn pattern_admitted(pattern: &str) -> bool {
             && repetition_budget(&parsed, MAX_REPEAT) > 0
             && program_within(&parsed)
     })
+}
+
+/// What preparing an admitted pattern charges against a payload's matching
+/// budget, or `None` when the pattern is refused.
+pub(crate) fn pattern_preparation(pattern: &str) -> Option<u64> {
+    let parsed = parse(pattern)?;
+    pattern_admitted(pattern).then(|| {
+        PREPARATION_BASE
+            .saturating_add(PREPARATION_WEIGHT.saturating_mul(program_cost(&parsed)))
+            .saturating_add(fold_work(&parsed))
+    })
+}
+
+fn fold_work(node: &Ast) -> u64 {
+    match node {
+        Ast::ClassBracketed(class) => class_items(class).map_or(u64::MAX, |items| {
+            items
+                .iter()
+                .fold(0, |total, item| total.saturating_add(item_folds(item)))
+        }),
+        Ast::Repetition(repetition) => fold_work(&repetition.ast),
+        Ast::Group(group) => fold_work(&group.ast),
+        Ast::Alternation(alternation) => alternation
+            .asts
+            .iter()
+            .fold(0, |total, child| total.saturating_add(fold_work(child))),
+        Ast::Concat(concat) => concat
+            .asts
+            .iter()
+            .fold(0, |total, child| total.saturating_add(fold_work(child))),
+        _ => 0,
+    }
+}
+
+/// The folding work of one class member: the code points it covers.
+fn item_folds(item: &ClassSetItem) -> u64 {
+    let (low, high) = match item {
+        ClassSetItem::Literal(literal) => (u32::from(literal.c), u32::from(literal.c)),
+        ClassSetItem::Range(range) => (u32::from(range.start.c), u32::from(range.end.c)),
+        ClassSetItem::Perl(perl) => (
+            0,
+            if perl.negated {
+                u32::from(char::MAX)
+            } else {
+                0x7F
+            },
+        ),
+        _ => return u64::MAX,
+    };
+    let cased = u64::from((high.min(CASED_END - 1) + 1).saturating_sub(low));
+    let covered = u64::from(high.saturating_sub(low)) + 1;
+    FOLD_WEIGHT
+        .saturating_mul(cased)
+        .saturating_add(SCAN_WEIGHT.saturating_mul(covered.saturating_sub(cased)))
 }
 
 /// Parses `pattern` with the nesting bound publication applies.
@@ -139,10 +204,13 @@ fn repetition_admitted(repetition: &Repetition, pattern: &str) -> bool {
     // A bounded range's lower count never exceeds its upper count.
     let counts_admitted = repetition_count(repetition) <= MAX_REPEAT;
     // The parser skips whitespace inside a counted repetition, where RE2 and
-    // Python read the braces literally.
-    let compact = !pattern[repetition.op.span.start.offset..repetition.op.span.end.offset]
-        .chars()
-        .any(char::is_whitespace);
+    // Python read the braces literally, and RE2 reads a count with a leading
+    // zero as literal text, where the parser and Python read its value.
+    let operator = &pattern[repetition.op.span.start.offset..repetition.op.span.end.offset];
+    let compact = !operator.chars().any(char::is_whitespace)
+        && !operator
+            .split(|character: char| !character.is_ascii_digit())
+            .any(|count| count.len() > 1 && count.starts_with('0'));
     // Python refuses to repeat an assertion, a repetition, or nothing.
     let operand_admitted = matches!(
         *repetition.ast,

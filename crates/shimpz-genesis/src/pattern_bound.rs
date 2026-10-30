@@ -15,7 +15,12 @@ const PROGRAM_OVERHEAD: u64 = 16;
 
 /// Whether the documented upper bound of the RE2 program fits Team's bound.
 pub(crate) fn program_within(node: &Ast) -> bool {
-    PROGRAM_OVERHEAD.saturating_add(program_bound(node)) <= MAX_PATTERN_PROGRAM
+    program_cost(node) <= MAX_PATTERN_PROGRAM
+}
+
+/// The upper bound of the pattern's RE2 program, the search overhead included.
+pub(crate) fn program_cost(node: &Ast) -> u64 {
+    PROGRAM_OVERHEAD.saturating_add(program_bound(node))
 }
 
 /// The count RE2 multiplies along nested counted repetitions: the upper bound,
